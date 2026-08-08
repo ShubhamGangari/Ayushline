@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ayush-forest: #1B3A4B;
+  --color-ayush-cream: #FFFDF7;
+  --color-ayush-gold: #D4A853;
+  --color-ayush-saffron: #E8915A;
+  --color-ayush-charcoal: #3D4F5F;
+  --color-ayush-ivory: #FDF8F0;
+  --color-ayush-sage: #F0F4F1;
+  --color-ayush-sand: #F5E6D3;
+  --color-ayush-ocean: #2E6B7A;
+  --color-ayush-coral: #E07A5F;
+  --color-ayush-sea: #3A7CA5;
+  --color-ayush-shell: #F0E6D8;
+
+  /* System Accents */
+  --color-sys-ayurveda: #5C8A3C;
+  --color-sys-yoga: #7B4FA6;
+  --color-sys-unani: #2E7D9A;
+  --color-sys-siddha: #B5451B;
+  --color-sys-homeo: #2A6B5E;
+
+  --font-display: "Cormorant Garamond", serif;
+  --font-body: "Lora", serif;
+  --font-ui: "Inter", "DM Sans", sans-serif;
+}
+
+@layer base {
+  body {
+    @apply font-body text-ayush-charcoal bg-ayush-cream antialiased selection:bg-ayush-gold/30;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display text-ayush-forest;
+  }
+
+  .bg-beach {
+    background: linear-gradient(135deg, #F5E6D3 0%, #FDF8F0 50%, #F0F4F1 100%);
+  }
+
+  /* Subtle gold mandala pattern used on hero & banner sections */
+  .bg-mandala {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='520' height='520' viewBox='0 0 520 520'><g fill='none' stroke='%23D4A853' stroke-opacity='0.22'><circle cx='260' cy='260' r='252'/><circle cx='260' cy='260' r='205' stroke-dasharray='5 11'/><circle cx='260' cy='260' r='150'/><circle cx='260' cy='260' r='92'/><circle cx='260' cy='260' r='34'/><path d='M260 260 L260 8 M260 260 L260 512 M260 260 L8 260 M260 260 L512 260'/><path d='M260 260 L438 82 M260 260 L82 438 M260 260 L82 82 M260 260 L438 438'/></g><g fill='none' stroke='%23D4A853' stroke-opacity='0.38'><circle cx='260' cy='54' r='24'/><circle cx='260' cy='466' r='24'/><circle cx='54' cy='260' r='24'/><circle cx='466' cy='260' r='24'/><circle cx='401' cy='119' r='24'/><circle cx='119' cy='401' r='24'/><circle cx='119' cy='119' r='24'/><circle cx='401' cy='401' r='24'/></g></svg>");
+    background-size: 520px 520px;
+    background-position: center;
+    background-repeat: repeat;
+  }
+
+  .bg-ocean-gradient {
+    background: linear-gradient(135deg, #1B3A4B 0%, #2E6B7A 50%, #3A7CA5 100%);
+  }
+
+  .bg-sand-gradient {
+    background: linear-gradient(135deg, #F5E6D3 0%, #FDF8F0 100%);
+  }
+
+  .text-ocean {
+    color: #2E6B7A;
+  }
+
+  .text-coral {
+    color: #E07A5F;
+  }
+
+  .text-sea {
+    color: #3A7CA5;
+  }
+
+  .bg-ocean {
+    background-color: #2E6B7A;
+  }
+
+  .bg-coral {
+    background-color: #E07A5F;
+  }
+
+  .bg-sea {
+    background-color: #3A7CA5;
+  }
+
+  .border-ocean {
+    border-color: #2E6B7A;
+  }
+
+  .border-sand {
+    border-color: #F5E6D3;
+  }
+
+  .hover\:bg-ocean:hover {
+    background-color: #2E6B7A;
+  }
+
+  .hover\:text-ocean:hover {
+    color: #2E6B7A;
+  }
+
+  .hover\:text-coral:hover {
+    color: #E07A5F;
+  }
+
+  .hover\:text-sea:hover {
+    color: #3A7CA5;
+  }
+
+  .shadow-beach {
+    box-shadow: 0 4px 20px rgba(30, 58, 75, 0.08), 0 1px 3px rgba(30, 58, 75, 0.04);
+  }
+
+  .shadow-ocean {
+    box-shadow: 0 8px 30px rgba(30, 58, 75, 0.12), 0 2px 6px rgba(30, 58, 75, 0.06);
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+}
+
+/* =============================================
+   Hide Clerk Branding
+   ============================================= */
+.cl-footer,
+.cl-footerAction,
+.cl-footerActionLink,
+[data-localization-key="footerActionLink__signIn"],
+[data-localization-key="footerActionLink__signUp"] {
+  display: none !important;
+}
+
+.cl-footer__poweredBy,
+[class*="cl-internal-"][class*="poweredBy"],
+[class*="PoweredBy"],
+a[href*="clerk.com"],
+a[href*="clerk.dev"] {
+  display: none !important;
+}
+
+.cl-card > *:last-child:has(a[href*="clerk"]) {
+  display: none !important;
+}
