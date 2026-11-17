@@ -453,7 +453,7 @@ export const Profile = () => {
 
                   {role !== 'doctor' && (
                     <Link
-                      to="/doctor-registration"
+                      to="/about/doctor-registration"
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-ayush-gold/20 text-ayush-forest font-ui font-bold text-xs hover:bg-ayush-gold transition-all w-fit"
                     >
                       Apply for Doctor Verification →

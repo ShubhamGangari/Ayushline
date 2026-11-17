@@ -75,6 +75,7 @@ function App() {
               <Route path="about"       element={<About />} />
               <Route path="about-us"    element={<About />} />
               <Route path="about/doctor-registration" element={<DoctorRegistration />} />
+              <Route path="doctor-registration"       element={<DoctorRegistration />} />
               <Route path="guidelines"  element={<Guidelines />} />
               <Route path="consult"     element={<Consult />} />
               <Route path="consultation" element={<Consult />} />
