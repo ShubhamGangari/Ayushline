@@ -49,7 +49,11 @@ export const isClerkConfigured =
   PUBLISHABLE_KEY !== 'pk_test_placeholder' &&
   !PUBLISHABLE_KEY.startsWith('pk_test_your_');
 
-const CLERK_LOAD_TIMEOUT_MS = 8000;
+const isLocalhost =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+const CLERK_LOAD_TIMEOUT_MS = isLocalhost && PUBLISHABLE_KEY.startsWith('pk_live_') ? 1000 : 3500;
 
 let activeLocalAuthMode = false;
 
@@ -153,7 +157,7 @@ function useClerkAuthHook(localUser: LocalUser | null) {
   const cUser = useClerkUser();
   const fallbackFromTimeout = useClerkFallbackActive(cAuth.isLoaded);
 
-  const user = useMemo(() => {
+  const clerkUserObj = useMemo(() => {
     if (!cUser.user) return null;
     return {
       id: cUser.user.id,
@@ -176,47 +180,73 @@ function useClerkAuthHook(localUser: LocalUser | null) {
   ]);
 
   useEffect(() => {
-    if (user && user.id) {
+    if (clerkUserObj && clerkUserObj.id) {
       saveLocalUser({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: (user.role as any) || 'user',
-        avatarUrl: user.avatarUrl,
+        id: clerkUserObj.id,
+        email: clerkUserObj.email,
+        name: clerkUserObj.name,
+        role: (clerkUserObj.role as any) || 'user',
+        avatarUrl: clerkUserObj.avatarUrl,
         createdAt: new Date().toISOString(),
       });
-      void createOrUpsertProfile(user.id, {
-        name: user.name,
-        email: user.email,
-        role: (user.role as any) || 'user',
-        avatar_url: user.avatarUrl,
+      void createOrUpsertProfile(clerkUserObj.id, {
+        name: clerkUserObj.name,
+        email: clerkUserObj.email,
+        role: (clerkUserObj.role as any) || 'user',
+        avatar_url: clerkUserObj.avatarUrl,
       });
     }
-  }, [user?.id, user?.email, user?.name, user?.role, user?.avatarUrl]);
+  }, [clerkUserObj?.id, clerkUserObj?.email, clerkUserObj?.name, clerkUserObj?.role, clerkUserObj?.avatarUrl]);
 
-  const fallbackActive = isLocalAuthMode() || fallbackFromTimeout;
-
-  if (!fallbackActive && cAuth) {
+  // Priority 1: User is signed into Clerk (e.g. Google or Clerk on production)
+  if (cAuth?.isSignedIn && clerkUserObj) {
     return {
-      isLoaded: cAuth.isLoaded,
-      isSignedIn: cAuth.isSignedIn,
+      isLoaded: true,
+      isSignedIn: true,
       userId: cAuth.userId,
       sessionId: cAuth.sessionId,
-      user: user,
+      user: clerkUserObj,
       getToken: cAuth.getToken,
-      signOut: cAuth.signOut,
+      signOut: async () => {
+        setLocalSession(null);
+        await cAuth.signOut();
+      },
     };
   }
 
+  // Priority 2: User is signed into Local storage session (e.g. email/password on localhost or fallback)
+  if (localUser) {
+    return {
+      isLoaded: true,
+      isSignedIn: true,
+      userId: localUser.id,
+      sessionId: `sess_${localUser.id}`,
+      user: localUser,
+      getToken: async () => null,
+      signOut: async () => {
+        setLocalSession(null);
+        if (cAuth?.signOut) {
+          try { await cAuth.signOut(); } catch {}
+        }
+      },
+    };
+  }
+
+  // Priority 3: Not signed in
+  const isReady = Boolean(cAuth?.isLoaded || fallbackFromTimeout);
+
   return {
-    isLoaded: true,
-    isSignedIn: Boolean(localUser),
-    userId: localUser?.id || null,
-    sessionId: localUser ? `sess_${localUser.id}` : null,
-    user: localUser,
+    isLoaded: isReady,
+    isSignedIn: false,
+    userId: null,
+    sessionId: null,
+    user: null,
     getToken: async () => null,
     signOut: async () => {
       setLocalSession(null);
+      if (cAuth?.signOut) {
+        try { await cAuth.signOut(); } catch {}
+      }
     },
   };
 }
@@ -246,13 +276,13 @@ export function useAuth() {
 // ─── Clerk SignIn Hook ────────────────────────────────────────────────────────
 function useClerkSignInHook(localUser: LocalUser | null) {
   const csi = useClerkSignIn();
-  const fallbackFromTimeout = useClerkFallbackActive(csi.isLoaded);
-  const fallbackActive = isLocalAuthMode() || fallbackFromTimeout;
+  const fallbackFromTimeout = useClerkFallbackActive(csi?.isLoaded ?? false);
+  const localSignIn = useLocalSignInHook(localUser);
 
-  if (!fallbackActive && csi) {
+  if (csi?.isLoaded && csi?.signIn && !fallbackFromTimeout) {
     return csi;
   }
-  return useLocalSignInHook(localUser);
+  return localSignIn;
 }
 
 function useLocalSignInHook(localUser: LocalUser | null) {
@@ -487,13 +517,13 @@ let lastCreatedLocalUser: LocalUser | null = null;
 
 function useClerkSignUpHook(localUser: LocalUser | null) {
   const csu = useClerkSignUp();
-  const fallbackFromTimeout = useClerkFallbackActive(csu.isLoaded);
-  const fallbackActive = isLocalAuthMode() || fallbackFromTimeout;
+  const fallbackFromTimeout = useClerkFallbackActive(csu?.isLoaded ?? false);
+  const localSignUp = useLocalSignUpHook(localUser);
 
-  if (!fallbackActive && csu) {
+  if (csu?.isLoaded && csu?.signUp && !fallbackFromTimeout) {
     return csu;
   }
-  return useLocalSignUpHook(localUser);
+  return localSignUp;
 }
 
 function useLocalSignUpHook(localUser: LocalUser | null) {

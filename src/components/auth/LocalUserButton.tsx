@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useAuth, getLocalSession, type LocalUser } from '../../hooks/useAuth';
+import { useAdmin } from '../../hooks/useAdmin';
 import { getProfile } from '../../lib/api/profiles';
-import { LogOut, ChevronDown, User, LayoutDashboard, Stethoscope, Calendar } from 'lucide-react';
+import { LogOut, ChevronDown, User, LayoutDashboard, Stethoscope, Calendar, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const LocalUserButton = () => {
   const { user: authUser, signOut } = useAuth();
+  const { isAdmin } = useAdmin();
   const [localSession, setLocalSessionState] = useState<LocalUser | null>(() => getLocalSession());
   const [avatarFromProfile, setAvatarFromProfile] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -107,6 +109,16 @@ export const LocalUserButton = () => {
             </div>
 
             <div className="py-1">
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-ayush-forest bg-ayush-saffron/10 hover:bg-ayush-saffron/20 transition-colors border-b border-ayush-charcoal/5"
+                >
+                  <ShieldCheck className="w-4 h-4 text-ayush-saffron" />
+                  <span>Admin Portal</span>
+                </Link>
+              )}
               <Link
                 to="/profile"
                 onClick={() => setOpen(false)}

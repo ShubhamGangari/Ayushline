@@ -128,6 +128,13 @@ const Navbar = () => {
 
           {/* Mobile: User Button + Hamburger */}
           <div className="flex items-center gap-2 md:hidden">
+            {isAdmin && (
+              <Link to="/admin"
+                className="px-2.5 py-1 rounded-full bg-ayush-saffron text-ayush-forest font-ui font-bold text-xs flex items-center gap-1 shadow-sm"
+              >
+                <ShieldCheck className="w-3 h-3" /> Admin
+              </Link>
+            )}
             {isLoaded && isSignedIn && <NotificationBell />}
             {isLoaded && isSignedIn && (
               <UserButton />
