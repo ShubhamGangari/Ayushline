@@ -337,13 +337,23 @@ export function useSignIn() {
   return useLocalSignInHook(localUser);
 }
 
+// ─── Error Message Sanitizer (Never reveal third-party vendor names) ──────────
+export function cleanAuthErrorMessage(msg: string): string {
+  if (!msg) return 'An unexpected error occurred. Please try again.';
+  return msg
+    .replace(/clerk/gi, 'Authentication')
+    .replace(/supabase/gi, 'Database')
+    .replace(/vercel/gi, 'Cloud')
+    .trim();
+}
+
 // ─── Google OAuth Hook ────────────────────────────────────────────────────────
 function useClerkGoogleOAuthHook() {
   const clerkInstance = useClerk();
   const clerkSignUp = useClerkSignUp();
   const clerkSignIn = useClerkSignIn();
 
-  const waitForClerkReady = async (timeoutMs = 8000): Promise<boolean> => {
+  const waitForClerkReady = async (timeoutMs = 3000): Promise<boolean> => {
     if (!isClerkConfigured) return false;
     const inst = clerkInstance as any;
     const start = Date.now();
@@ -359,7 +369,7 @@ function useClerkGoogleOAuthHook() {
         Boolean(clerkGlobal?.signUp) ||
         Boolean(clerkGlobal?.signIn);
       if (isReady) return true;
-      await new Promise((r) => setTimeout(r, 250));
+      await new Promise((r) => setTimeout(r, 200));
     }
     return false;
   };
@@ -372,18 +382,28 @@ function useClerkGoogleOAuthHook() {
     redirectUrlComplete: string;
   }): Promise<boolean> => {
     if (!isClerkConfigured) {
-      throw new Error('VITE_CLERK_PUBLISHABLE_KEY is not configured in Vercel Environment Variables.');
+      throw new Error('Authentication service is not configured. Please use email registration.');
     }
 
-    const ready = await waitForClerkReady();
+    const isLocalhost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+    if (isLocalhost && PUBLISHABLE_KEY.startsWith('pk_live_')) {
+      throw new Error(
+        'Google Sign-In is configured for the live production domain (ayushline.com). For local testing, please register with your email.'
+      );
+    }
+
+    const ready = await waitForClerkReady(3000);
     if (!ready) {
-      throw new Error('Clerk authentication service is taking too long to load. Please refresh the page.');
+      throw new Error('Authentication service is taking longer than expected. Please refresh the page or use email registration.');
     }
 
     const signUpResource =
       (clerkInstance as any)?.signUp || (window as any).Clerk?.signUp || clerkSignUp?.signUp;
     if (!signUpResource?.authenticateWithRedirect) {
-      throw new Error('Clerk SignUp provider is unavailable.');
+      throw new Error('Authentication sign-up service is temporarily unavailable. Please use email registration.');
     }
     try {
       await signUpResource.authenticateWithRedirect({
@@ -394,8 +414,8 @@ function useClerkGoogleOAuthHook() {
       });
       return true;
     } catch (err: any) {
-      const msg = err?.errors?.[0]?.message || err?.message || 'Google OAuth error';
-      throw new Error(msg);
+      const msg = err?.errors?.[0]?.message || err?.message || 'Google authentication error';
+      throw new Error(cleanAuthErrorMessage(msg));
     }
   };
 
@@ -405,18 +425,28 @@ function useClerkGoogleOAuthHook() {
     redirectUrlComplete: string;
   }): Promise<boolean> => {
     if (!isClerkConfigured) {
-      throw new Error('VITE_CLERK_PUBLISHABLE_KEY is not configured in Vercel Environment Variables.');
+      throw new Error('Authentication service is not configured. Please use email sign-in.');
     }
 
-    const ready = await waitForClerkReady();
+    const isLocalhost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+    if (isLocalhost && PUBLISHABLE_KEY.startsWith('pk_live_')) {
+      throw new Error(
+        'Google Sign-In is configured for the live production domain (ayushline.com). For local testing, please log in with your email.'
+      );
+    }
+
+    const ready = await waitForClerkReady(3000);
     if (!ready) {
-      throw new Error('Clerk authentication service is taking too long to load. Please refresh the page.');
+      throw new Error('Authentication service is taking longer than expected. Please refresh the page or use email sign-in.');
     }
 
     const signInResource =
       (clerkInstance as any)?.signIn || (window as any).Clerk?.signIn || clerkSignIn?.signIn;
     if (!signInResource?.authenticateWithRedirect) {
-      throw new Error('Clerk SignIn provider is unavailable.');
+      throw new Error('Authentication sign-in service is temporarily unavailable. Please use email sign-in.');
     }
     try {
       await signInResource.authenticateWithRedirect({
@@ -426,8 +456,8 @@ function useClerkGoogleOAuthHook() {
       });
       return true;
     } catch (err: any) {
-      const msg = err?.errors?.[0]?.message || err?.message || 'Google OAuth error';
-      throw new Error(msg);
+      const msg = err?.errors?.[0]?.message || err?.message || 'Google authentication error';
+      throw new Error(cleanAuthErrorMessage(msg));
     }
   };
 
@@ -437,10 +467,10 @@ function useClerkGoogleOAuthHook() {
 function useLocalGoogleOAuthHook() {
   return {
     signUpWithGoogle: async () => {
-      throw new Error('Google Sign-In is unavailable in demo mode without Clerk credentials.');
+      throw new Error('Google Sign-In is temporarily unavailable. Please register with your email.');
     },
     signInWithGoogle: async () => {
-      throw new Error('Google Sign-In is unavailable in demo mode without Clerk credentials.');
+      throw new Error('Google Sign-In is temporarily unavailable. Please log in with your email.');
     },
   };
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { getProfile, createOrUpsertProfile } from '../../lib/api/profiles';
-import { compressAndEncodeImage } from '../../lib/imageUtils';
+import { uploadImage } from '../../lib/uploadImage';
 import { Button } from '../ui/Button';
 import {
   Stethoscope, User, Save, CheckCircle, Calendar, MessageSquare,
@@ -56,8 +56,8 @@ export const PractitionerDashboard = () => {
     if (!file) return;
     setPostImageError('');
     try {
-      const compressedBase64 = await compressAndEncodeImage(file, 800, 600, 0.85);
-      setPostThumbnailUrl(compressedBase64);
+      const res = await uploadImage(file, 'posts', 900, 600, 0.85);
+      setPostThumbnailUrl(res.url);
     } catch (err: any) {
       setPostImageError(err.message || 'Image size exceeds 2MB limit.');
     }
@@ -68,8 +68,8 @@ export const PractitionerDashboard = () => {
     if (!file) return;
     setAvatarError('');
     try {
-      const compressedBase64 = await compressAndEncodeImage(file);
-      setAvatarUrl(compressedBase64);
+      const res = await uploadImage(file, 'avatars', 400, 400, 0.82);
+      setAvatarUrl(res.url);
       setSuccessMsg('Profile picture uploaded and compressed! Click "Save & List Live" to update.');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err: any) {

@@ -58,7 +58,7 @@ const AdminUsers: React.FC = () => {
             <Users className="w-7 h-7 text-ayush-gold" /> Registered Users & Roles
           </h1>
           <p className="text-ayush-charcoal/70 font-body text-sm mt-1">
-            {users.length} total registered profiles in Supabase & Local DB. Manage live accounts and permissions.
+            {users.length} total registered profiles. Manage live accounts and system permissions.
           </p>
         </div>
 

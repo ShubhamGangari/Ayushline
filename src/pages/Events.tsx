@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, MapPin, Users, Megaphone, PlusCircle, CheckCircle, Check, Image as ImageIcon, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { getApprovedEvents, createEvent, registerForEvent, unregisterFromEvent, isUserRegisteredForEvent, type EventItem } from '../lib/api/events';
-import { compressAndEncodeImage } from '../lib/imageUtils';
+import { uploadImage } from '../lib/uploadImage';
 import { useAuth } from '../hooks/useAuth';
 import { AuthRequiredModal } from '../components/auth/AuthRequiredModal';
 
@@ -67,8 +67,8 @@ const Events = () => {
     if (!file) return;
     setBannerError('');
     try {
-      const compressedBase64 = await compressAndEncodeImage(file, 800, 500, 0.85);
-      setBannerUrl(compressedBase64);
+      const res = await uploadImage(file, 'events', 1000, 600, 0.85);
+      setBannerUrl(res.url);
     } catch (err: any) {
       setBannerError(err.message || 'Image size exceeds 2MB limit.');
     }

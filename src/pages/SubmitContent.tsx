@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { PenTool, CheckCircle, ArrowLeft, Image as ImageIcon, AlertCircle, ShieldAlert, LogIn } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { createPost } from '../lib/api/posts';
-import { compressAndEncodeImage } from '../lib/imageUtils';
+import { uploadImage } from '../lib/uploadImage';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { AuthRequiredModal } from '../components/auth/AuthRequiredModal';
@@ -32,8 +32,8 @@ const SubmitContent: React.FC = () => {
     if (!file) return;
     setImageError('');
     try {
-      const compressedBase64 = await compressAndEncodeImage(file, 800, 600, 0.85);
-      setThumbnailUrl(compressedBase64);
+      const res = await uploadImage(file, 'posts', 900, 600, 0.85);
+      setThumbnailUrl(res.url);
     } catch (err: any) {
       setImageError(err.message || 'Image size exceeds 2MB limit.');
     }

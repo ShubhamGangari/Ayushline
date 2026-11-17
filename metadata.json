@@ -1,6 +1,5 @@
 {
   "name": "Ayushline",
   "description": "Unified platform for AYUSH (Ayurveda, Yoga, Unani, Siddha, Homeopathy) consultation, research, what's new, and community wisdom.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "requestFramePermissions": []
 }

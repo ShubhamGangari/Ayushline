@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSignIn, useGoogleOAuth } from '../../hooks/useAuth';
+import { useSignIn, useGoogleOAuth, cleanAuthErrorMessage } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { User, Lock, ArrowLeft, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -85,7 +85,7 @@ const CustomSignIn = ({ onBack, afterSignInUrl = '/' }: CustomSignInProps) => {
       } else if (rawMsg.includes('password') || rawMsg.includes('incorrect')) {
         setError('Incorrect password! Please double-check your password and try again.');
       } else {
-        setError(rawMsg || 'Sign in failed. Please check your credentials.');
+        setError(cleanAuthErrorMessage(rawMsg) || 'Sign in failed. Please check your credentials.');
       }
     }
     setLoading(false);
@@ -99,7 +99,7 @@ const CustomSignIn = ({ onBack, afterSignInUrl = '/' }: CustomSignInProps) => {
         redirectUrlComplete: window.location.origin + afterSignInUrl,
       });
     } catch (err: any) {
-      setError(err.errors?.[0]?.message || err.message || 'Failed to sign in with Google');
+      setError(cleanAuthErrorMessage(err.errors?.[0]?.message || err.message || 'Failed to sign in with Google'));
     }
     setGoogleLoading(false);
   };

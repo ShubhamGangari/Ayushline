@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile, createOrUpsertProfile, type Profile as ProfileType } from '../lib/api/profiles';
-import { compressAndEncodeImage } from '../lib/imageUtils';
+import { uploadImage } from '../lib/uploadImage';
 import { Button } from '../components/ui/Button';
 import {
   User,
@@ -147,8 +147,8 @@ export const Profile = () => {
      if (!file) return;
      setErrorMsg('');
      try {
-       const compressedBase64 = await compressAndEncodeImage(file);
-       setAvatarUrl(compressedBase64);
+       const res = await uploadImage(file, 'avatars', 400, 400, 0.82);
+       setAvatarUrl(res.url);
        setSuccessMsg('Photo selected and compressed! Click "Save Profile" to update permanently.');
        setTimeout(() => setSuccessMsg(''), 4000);
      } catch (err: any) {

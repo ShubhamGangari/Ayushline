@@ -24,7 +24,7 @@ import {
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../hooks/useAuth';
 import { AuthRequiredModal } from '../components/auth/AuthRequiredModal';
-import { compressAndEncodeImage } from '../lib/imageUtils';
+import { uploadImage } from '../lib/uploadImage';
 import {
   getWhatsNewItems,
   createWhatsNewItem,
@@ -121,8 +121,8 @@ const WhatsNew: React.FC = () => {
     if (!file) return;
     setBannerError('');
     try {
-      const compressed = await compressAndEncodeImage(file, 800, 500, 0.85);
-      setFormBannerUrl(compressed);
+      const res = await uploadImage(file, 'updates', 1000, 600, 0.85);
+      setFormBannerUrl(res.url);
     } catch (err: any) {
       setBannerError(err.message || 'Image upload failed. Max size 2MB.');
     }

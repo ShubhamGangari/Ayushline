@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSignUp, useGoogleOAuth } from '../../hooks/useAuth';
+import { useSignUp, useGoogleOAuth, cleanAuthErrorMessage } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { User, Lock, ArrowLeft, Eye, EyeOff, AlertCircle, CheckCircle2, GraduationCap, Stethoscope, Building2, Building, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -190,7 +190,7 @@ const CustomSignUp = ({ onBack, afterSignUpUrl = '/', selectedRole = 'user' }: C
         setIsPwnedError(true);
         setError('Security Alert: This password (like Hello@1234) is flagged in leaked databases.');
       } else {
-        setError(rawMsg || 'Account creation failed. Please check details and try again.');
+        setError(cleanAuthErrorMessage(rawMsg) || 'Account creation failed. Please check details and try again.');
         setIsPwnedError(false);
       }
     }
@@ -252,7 +252,7 @@ const CustomSignUp = ({ onBack, afterSignUpUrl = '/', selectedRole = 'user' }: C
         redirectUrlComplete: window.location.origin + afterSignUpUrl,
       });
     } catch (err: any) {
-      setError(err.errors?.[0]?.message || err.message || 'Failed to sign up with Google');
+      setError(cleanAuthErrorMessage(err.errors?.[0]?.message || err.message || 'Failed to sign up with Google'));
     }
     setGoogleLoading(false);
   };

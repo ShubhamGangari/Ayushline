@@ -3,8 +3,8 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
 
-export default defineConfig(() => {
-  const isProd = process.env.NODE_ENV === 'production';
+export default defineConfig(({ mode }) => {
+  const isProd = mode === 'production' || process.env.NODE_ENV === 'production';
 
   return {
     plugins: [react(), tailwindcss()],
@@ -58,10 +58,6 @@ export default defineConfig(() => {
             // Supabase client
             if (id.includes('node_modules/@supabase')) {
               return 'supabase';
-            }
-            // Google AI SDK (loaded on demand)
-            if (id.includes('node_modules/@google')) {
-              return 'google-ai';
             }
           },
         },

@@ -87,11 +87,7 @@ const DoctorRegistration = () => {
             Please sign in to access doctor registration and login.
           </p>
           <div className="bg-white rounded-3xl shadow-xl border border-ayush-forest/10 p-8 max-w-md mx-auto">
-            {isClerkConfigured ? (
-              <CustomSignIn afterSignInUrl="/about/doctor-registration" />
-            ) : (
-              <p className="text-ayush-charcoal/70 font-body text-center">Authentication is not configured on this server.</p>
-            )}
+            <CustomSignIn afterSignInUrl="/about/doctor-registration" />
           </div>
         </div>
       </div>

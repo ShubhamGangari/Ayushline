@@ -5,6 +5,7 @@ import { useAuth, UserButton } from '../../hooks/useAuth';
 import { useAdmin } from '../../hooks/useAdmin';
 import { AyushlineLogo } from '../ui/AyushlineLogo';
 import { AyurvedaIcon, YogaIcon, UnaniIcon, SiddhaIcon, HomeopathyIcon } from '../ui/SystemIcons';
+import { NotificationBell } from './NotificationBell';
 
 const AYUSH_SYSTEMS = [
   { name: 'Ayurveda', path: '/ayurveda', icon: <AyurvedaIcon className="w-6 h-6 shrink-0" />, desc: 'Ancient Indian healing' },
@@ -112,6 +113,7 @@ const Navbar = () => {
                   <ShieldCheck className="w-3.5 h-3.5" /> Admin
                 </Link>
               )}
+              {isLoaded && isSignedIn && <NotificationBell />}
               {isLoaded && isSignedIn ? (
                 <UserButton />
               ) : (
@@ -126,6 +128,7 @@ const Navbar = () => {
 
           {/* Mobile: User Button + Hamburger */}
           <div className="flex items-center gap-2 md:hidden">
+            {isLoaded && isSignedIn && <NotificationBell />}
             {isLoaded && isSignedIn && (
               <UserButton />
             )}

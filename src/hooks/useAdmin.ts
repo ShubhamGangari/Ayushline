@@ -2,18 +2,25 @@ import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { isClerkConfigured, useAuth, isLocalAuthMode } from './useAuth';
 
-// Explicitly recognized admin User IDs (including user's Clerk ID)
-const HARDCODED_ADMIN_USER_IDS = [
-  'user_3J5YR8wS6wh6XnquYEzMVNqwSP8',
-  'user_3J6CCVGjA3S8T4466lwnuXa8N9J',
-];
+// Environment variables for admin configuration
+const envAdminIdsRaw = (import.meta.env.VITE_ADMIN_USER_ID || import.meta.env.VITE_ADMIN_USER_IDS || '').toString();
+const envAdminIds = envAdminIdsRaw
+  .split(',')
+  .map((id) => id.trim().replace(/^["']|["']$/g, ''))
+  .filter((id) => id && id !== 'user_your_clerk_user_id_here');
 
-// Explicitly recognized admin Email addresses
-const HARDCODED_ADMIN_EMAILS = [
-  'shubhamgangari3@gmail.com',
-  'admin@ayushline.gov.in',
-  'admin@ayush.gov.in',
-];
+// Admin emails from environment
+const envAdminEmailsRaw = (import.meta.env.VITE_ADMIN_EMAIL || import.meta.env.VITE_ADMIN_EMAILS || '').toString();
+const envAdminEmails = envAdminEmailsRaw
+  .split(',')
+  .map((email) => email.trim().toLowerCase().replace(/^["']|["']$/g, ''))
+  .filter(Boolean);
+
+// All admin user IDs (no hardcoded values)
+const ALL_ADMIN_USER_IDS = new Set([...envAdminIds]);
+
+// All admin emails (no hardcoded values)
+const ALL_ADMIN_EMAILS = new Set([...envAdminEmails]);
 
 const CLERK_LOAD_TIMEOUT_MS = 3000;
 
@@ -51,29 +58,12 @@ export function useAdmin() {
     }
   }
 
-  // Parse VITE_ADMIN_USER_ID / VITE_ADMIN_USER_IDS env vars cleanly
-  const envAdminIdsRaw = (import.meta.env.VITE_ADMIN_USER_ID || import.meta.env.VITE_ADMIN_USER_IDS || '').toString();
-  const envAdminIds = envAdminIdsRaw
-    .split(',')
-    .map((id) => id.trim().replace(/^["']|["']$/g, ''))
-    .filter((id) => id && id !== 'user_your_clerk_user_id_here');
-
-  const allAdminUserIds = new Set([...HARDCODED_ADMIN_USER_IDS, ...envAdminIds]);
-
-  const envAdminEmailsRaw = (import.meta.env.VITE_ADMIN_EMAIL || import.meta.env.VITE_ADMIN_EMAILS || '').toString();
-  const envAdminEmails = envAdminEmailsRaw
-    .split(',')
-    .map((email) => email.trim().toLowerCase().replace(/^["']|["']$/g, ''))
-    .filter(Boolean);
-
-  const allAdminEmails = new Set([...HARDCODED_ADMIN_EMAILS, ...envAdminEmails]);
-
   // Check auth user (local session or Clerk fallback)
   const localEmail = (auth.user?.email || '').toLowerCase();
   const isLocalAdmin =
     auth.user?.role === 'admin' ||
-    (auth.userId && allAdminUserIds.has(auth.userId)) ||
-    (localEmail && allAdminEmails.has(localEmail));
+    (auth.userId && ALL_ADMIN_USER_IDS.has(auth.userId)) ||
+    (localEmail && ALL_ADMIN_EMAILS.has(localEmail));
 
   if (!isClerkConfigured || fallbackActive) {
     return {
@@ -97,8 +87,8 @@ export function useAdmin() {
   const clerkEmail = (clerkUser.primaryEmailAddress?.emailAddress || '').toLowerCase();
   const clerkMetadataRole = (clerkUser.publicMetadata as any)?.role;
 
-  const isAdminByEnvOrId = allAdminUserIds.has(clerkUserId);
-  const isAdminByEmail = clerkEmail ? allAdminEmails.has(clerkEmail) : false;
+  const isAdminByEnvOrId = ALL_ADMIN_USER_IDS.has(clerkUserId);
+  const isAdminByEmail = clerkEmail ? ALL_ADMIN_EMAILS.has(clerkEmail) : false;
   const isAdminByMetadata = clerkMetadataRole === 'admin';
   const isAdminByLocal = auth.user?.role === 'admin';
 
