@@ -28,8 +28,9 @@ export function useAdmin() {
   const userId = auth.userId || auth.user?.id || '';
   const userRole = (auth.user?.role || '').toString().toLowerCase();
 
-  const localProf = userId ? getLocalProfile(userId) : (userEmail ? getLocalProfile(userEmail) : null);
-  const isAdminByProfile = localProf?.role === 'admin';
+  const localProfById = userId ? getLocalProfile(userId) : null;
+  const localProfByEmail = userEmail ? getLocalProfile(userEmail) : null;
+  const isAdminByProfile = localProfById?.role === 'admin' || localProfByEmail?.role === 'admin';
 
   const isAdminByEnvEmail = Boolean(userEmail && ALL_ADMIN_EMAILS.has(userEmail));
   const isAdminByEnvId = Boolean(userId && ALL_ADMIN_USER_IDS.has(userId));

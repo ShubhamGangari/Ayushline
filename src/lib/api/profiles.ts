@@ -45,24 +45,69 @@ export async function createOrUpsertProfile(
 ): Promise<{ success: boolean; message: string; data?: Profile }> {
   const existingLocal = getLocalProfile(userId);
 
-  // Guard against accidental downgrade:
-  // If user already holds 'admin', 'doctor', or 'org' role, and incoming data is 'user',
-  // keep the existing privileged role.
+  // 1. Fetch remote Supabase role first to prevent downgrading elevated roles
+  let remoteRole: UserRole | null = null;
+  let remotePendingRole: UserRole | null = null;
+  let remotePendingInvitedBy: string | null = null;
+  let remotePendingInvitedAt: string | null = null;
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const isEmail = userId.includes('@');
+      let query = supabase.from('profiles').select('role, pending_role, pending_role_invited_by, pending_role_invited_at');
+      if (isEmail) {
+        query = query.ilike('email', userId);
+      } else {
+        query = query.eq('id', userId);
+      }
+      const { data: remoteData } = await query.maybeSingle();
+      if (remoteData?.role) {
+        remoteRole = remoteData.role as UserRole;
+      }
+      if (remoteData?.pending_role) {
+        remotePendingRole = remoteData.pending_role as UserRole;
+        remotePendingInvitedBy = remoteData.pending_role_invited_by || null;
+        remotePendingInvitedAt = remoteData.pending_role_invited_at || null;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // 2. Resolve Role with absolute immunity against accidental downgrade:
+  // If remote database already has 'admin', user stays 'admin'!
+  // If remote database has an elevated role, prefer remote unless incoming data explicitly changes it with non-user role
   let resolvedRole: UserRole = existingLocal?.role || 'user';
-  if (data.role && data.role !== 'user') {
-    resolvedRole = data.role;
-  } else if (!existingLocal?.role && data.role) {
+  if (remoteRole) {
+    if (remoteRole === 'admin') {
+      resolvedRole = 'admin';
+    } else if (data.role && data.role !== 'user') {
+      resolvedRole = data.role;
+    } else {
+      resolvedRole = remoteRole;
+    }
+  } else if (data.role) {
     resolvedRole = data.role;
   }
+
+  // 3. Resolve pending role
+  const resolvedPendingRole =
+    data.pending_role !== undefined
+      ? data.pending_role
+      : (remotePendingRole ?? existingLocal?.pending_role ?? null);
+  const resolvedPendingInvitedBy =
+    data.pending_role_invited_by ?? remotePendingInvitedBy ?? existingLocal?.pending_role_invited_by ?? null;
+  const resolvedPendingInvitedAt =
+    data.pending_role_invited_at ?? remotePendingInvitedAt ?? existingLocal?.pending_role_invited_at ?? null;
 
   const updatedLocal: Profile = {
     id: userId,
     name: data.name ?? existingLocal?.name ?? 'User',
     email: data.email ?? existingLocal?.email ?? null,
     role: resolvedRole,
-    pending_role: data.pending_role !== undefined ? data.pending_role : (existingLocal?.pending_role ?? null),
-    pending_role_invited_by: data.pending_role_invited_by ?? existingLocal?.pending_role_invited_by ?? null,
-    pending_role_invited_at: data.pending_role_invited_at ?? existingLocal?.pending_role_invited_at ?? null,
+    pending_role: resolvedPendingRole,
+    pending_role_invited_by: resolvedPendingInvitedBy,
+    pending_role_invited_at: resolvedPendingInvitedAt,
     avatar_url: data.avatar_url ?? existingLocal?.avatar_url ?? null,
     bio: data.bio ?? existingLocal?.bio ?? null,
     whatsapp: data.whatsapp ?? existingLocal?.whatsapp ?? null,
@@ -116,22 +161,29 @@ export async function createOrUpsertProfile(
 }
 
 export async function getProfile(userId: string): Promise<Profile | null> {
-  const local = getLocalProfile(userId);
-  if (local) return local;
+  // Query Supabase first so cross-device role changes (like admin elevations) reflect immediately
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const isEmail = userId.includes('@');
+      let query = supabase.from('profiles').select('*');
+      if (isEmail) {
+        query = query.ilike('email', userId);
+      } else {
+        query = query.eq('id', userId);
+      }
+      const { data, error } = await query.maybeSingle();
 
-  if (!isSupabaseConfigured || !supabase) return null;
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    if (error || !data) return null;
-    return data as Profile;
-  } catch {
-    return null;
+      if (!error && data) {
+        const prof = data as Profile;
+        saveLocalProfile(prof);
+        return prof;
+      }
+    } catch {
+      // ignore
+    }
   }
+
+  return getLocalProfile(userId);
 }
 
 export function getLocalProfile(userId: string): Profile | null {
@@ -248,20 +300,28 @@ export async function getAllProfilesAdmin(): Promise<Profile[]> {
     // ignore
   }
 
-  // Merge lists by email or id
+  // Merge lists: localUsers first, then Supabase overwrites with fresh authoritative database state!
   const map = new Map<string, Profile>();
-  [...list, ...localUsers].forEach((u) => {
+  localUsers.forEach((u) => {
+    const key = (u.email || u.id).toLowerCase();
+    map.set(key, u);
+  });
+
+  list.forEach((u) => {
     const key = (u.email || u.id).toLowerCase();
     if (!map.has(key)) {
       map.set(key, u);
+      saveLocalProfile(u);
     } else {
       const existing = map.get(key)!;
-      map.set(key, {
+      const merged: Profile = {
         ...existing,
         ...u,
-        role: u.role || existing.role,
-        pending_role: u.pending_role ?? existing.pending_role ?? null,
-      });
+        role: u.role || existing.role, // Supabase cloud role takes precedence!
+        pending_role: u.pending_role !== undefined ? u.pending_role : (existing.pending_role ?? null),
+      };
+      map.set(key, merged);
+      saveLocalProfile(merged);
     }
   });
 
@@ -271,37 +331,66 @@ export async function getAllProfilesAdmin(): Promise<Profile[]> {
 /**
  * Directly updates user's role without user approval (direct admin action)
  */
-export async function updateProfileRoleAdmin(userId: string, role: UserRole): Promise<boolean> {
-  const profile = getLocalProfile(userId);
-  if (profile) {
-    profile.role = role;
-    profile.pending_role = null;
-    saveLocalProfile(profile);
-  }
-
-  // Update local storage registered users
-  try {
-    const raw = localStorage.getItem('ayush_registered_users_v2');
-    if (raw) {
-      const users = JSON.parse(raw);
-      const needle = userId.toLowerCase();
-      const idx = users.findIndex((u: any) => u.id === userId || (u.email && u.email.toLowerCase() === needle));
-      if (idx >= 0) {
-        users[idx].role = role;
-        users[idx].pending_role = null;
-        localStorage.setItem('ayush_registered_users_v2', JSON.stringify(users));
+export async function updateProfileRoleAdmin(
+  userId: string,
+  role: UserRole,
+  userEmail?: string,
+  targetProfile?: Partial<Profile>
+): Promise<boolean> {
+  const profile = getLocalProfile(userId) || (userEmail ? getLocalProfile(userEmail) : null);
+  const updatedProfile: Profile = profile
+    ? {
+        ...profile,
+        role,
+        pending_role: null,
+        updated_at: new Date().toISOString(),
       }
-    }
-  } catch {
-    // ignore
-  }
+    : {
+        id: userId,
+        email: userEmail || targetProfile?.email || null,
+        name: targetProfile?.name || 'User',
+        role,
+        pending_role: null,
+        avatar_url: targetProfile?.avatar_url || null,
+        bio: targetProfile?.bio || null,
+        created_at: targetProfile?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
 
-  // Update Supabase if configured
+  saveLocalProfile(updatedProfile);
+
+  // Update Supabase if configured with upsert to guarantee persistence
   if (isSupabaseConfigured && supabase) {
     try {
-      await supabase.from('profiles').update({ role, updated_at: new Date().toISOString() }).eq('id', userId);
-    } catch {
-      // ignore
+      const email = userEmail || targetProfile?.email || updatedProfile.email;
+      const upsertRecord: any = {
+        id: userId,
+        role,
+        pending_role: null,
+        pending_role_invited_by: null,
+        pending_role_invited_at: null,
+        updated_at: new Date().toISOString(),
+      };
+      if (email) upsertRecord.email = email;
+      if (updatedProfile.name) upsertRecord.name = updatedProfile.name;
+      if (updatedProfile.avatar_url) upsertRecord.avatar_url = updatedProfile.avatar_url;
+
+      await supabase.from('profiles').upsert(upsertRecord, { onConflict: 'id' });
+
+      if (email) {
+        await supabase
+          .from('profiles')
+          .update({
+            role,
+            pending_role: null,
+            pending_role_invited_by: null,
+            pending_role_invited_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .ilike('email', email);
+      }
+    } catch (err) {
+      console.warn('Supabase profile role update warning:', err);
     }
   }
 
@@ -316,19 +405,35 @@ export async function updateProfileRoleAdmin(userId: string, role: UserRole): Pr
 export async function inviteProfileRoleAdmin(
   userId: string,
   newRole: UserRole,
-  adminIdentifier = 'System Administrator'
+  adminIdentifier = 'System Administrator',
+  targetProfile?: Partial<Profile>
 ): Promise<{ success: boolean; message: string }> {
-  const profile = getLocalProfile(userId);
-  const targetEmail = profile?.email || (userId.includes('@') ? userId : '');
+  const profile = getLocalProfile(userId) || (targetProfile?.email ? getLocalProfile(targetProfile.email) : null);
+  const targetEmail = profile?.email || targetProfile?.email || (userId.includes('@') ? userId : '');
   const roleName = ROLE_LABELS[newRole] || newRole;
 
-  // 1. Update Profile in LocalStorage with pending_role
-  if (profile) {
-    profile.pending_role = newRole;
-    profile.pending_role_invited_by = adminIdentifier;
-    profile.pending_role_invited_at = new Date().toISOString();
-    saveLocalProfile(profile);
-  }
+  const updatedProfile: Profile = profile
+    ? {
+        ...profile,
+        pending_role: newRole,
+        pending_role_invited_by: adminIdentifier,
+        pending_role_invited_at: new Date().toISOString(),
+      }
+    : {
+        id: userId,
+        email: targetEmail || null,
+        name: targetProfile?.name || 'User',
+        role: targetProfile?.role || 'user',
+        pending_role: newRole,
+        pending_role_invited_by: adminIdentifier,
+        pending_role_invited_at: new Date().toISOString(),
+        avatar_url: targetProfile?.avatar_url || null,
+        bio: targetProfile?.bio || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+  saveLocalProfile(updatedProfile);
 
   // 2. Update registered users list
   try {
@@ -348,7 +453,39 @@ export async function inviteProfileRoleAdmin(
     // ignore
   }
 
-  // 3. Dispatch an approval notification specifically targeted to this user
+  // 3. Persist pending role to Supabase
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const upsertInvite: any = {
+        id: userId,
+        pending_role: newRole,
+        pending_role_invited_by: adminIdentifier,
+        pending_role_invited_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      if (targetEmail) upsertInvite.email = targetEmail;
+      if (updatedProfile.name) upsertInvite.name = updatedProfile.name;
+      if (updatedProfile.role) upsertInvite.role = updatedProfile.role;
+
+      await supabase.from('profiles').upsert(upsertInvite, { onConflict: 'id' });
+
+      if (targetEmail) {
+        await supabase
+          .from('profiles')
+          .update({
+            pending_role: newRole,
+            pending_role_invited_by: adminIdentifier,
+            pending_role_invited_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .ilike('email', targetEmail);
+      }
+    } catch (err) {
+      console.warn('Supabase invite role error:', err);
+    }
+  }
+
+  // 4. Dispatch an approval notification specifically targeted to this user
   addNotification({
     userId,
     userEmail: targetEmail || undefined,
@@ -417,7 +554,30 @@ export async function acceptRoleInvite(
   // Update Supabase if configured
   if (isSupabaseConfigured && supabase) {
     try {
-      await supabase.from('profiles').update({ role: targetRole, updated_at: new Date().toISOString() }).eq('id', userId);
+      const email = userEmail || profile?.email;
+      await supabase
+        .from('profiles')
+        .update({
+          role: targetRole,
+          pending_role: null,
+          pending_role_invited_by: null,
+          pending_role_invited_at: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+
+      if (email) {
+        await supabase
+          .from('profiles')
+          .update({
+            role: targetRole,
+            pending_role: null,
+            pending_role_invited_by: null,
+            pending_role_invited_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .ilike('email', email);
+      }
     } catch {}
   }
 
@@ -478,6 +638,34 @@ export async function declineRoleInvite(
     updateNotificationRoleInviteStatus(notificationId, 'declined');
   }
 
+  // Update Supabase if configured
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const email = userEmail || profile?.email;
+      await supabase
+        .from('profiles')
+        .update({
+          pending_role: null,
+          pending_role_invited_by: null,
+          pending_role_invited_at: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+
+      if (email) {
+        await supabase
+          .from('profiles')
+          .update({
+            pending_role: null,
+            pending_role_invited_by: null,
+            pending_role_invited_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .ilike('email', email);
+      }
+    } catch {}
+  }
+
   addNotification({
     userId,
     userEmail,
@@ -521,7 +709,12 @@ export async function deleteProfileAdmin(userId: string): Promise<boolean> {
 
 function saveLocalProfile(profile: Profile) {
   try {
-    localStorage.setItem(`ayush_profile_${profile.id}`, JSON.stringify(profile));
+    if (profile.id) {
+      localStorage.setItem(`ayush_profile_${profile.id}`, JSON.stringify(profile));
+    }
+    if (profile.email) {
+      localStorage.setItem(`ayush_profile_${profile.email.toLowerCase()}`, JSON.stringify(profile));
+    }
 
     // Also sync active local session and local users array
     const activeRaw = localStorage.getItem('ayush_active_session_v2');

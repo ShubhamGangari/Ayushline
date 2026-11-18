@@ -81,15 +81,36 @@ const AdminUsers: React.FC = () => {
     setRoleModal({ user: targetUser, newRole });
   };
 
-  // Option 1: Send invitation for user approval (Requested workflow)
+  // Option 1: Apply Immediately (Direct Admin Action - 100% cloud persistent)
+  const handleApplyImmediate = async () => {
+    if (!roleModal) return;
+    const { user, newRole } = roleModal;
+
+    await updateProfileRoleAdmin(user.id, newRole, user.email || undefined, user);
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === user.id || (u.email && user.email && u.email.toLowerCase() === user.email.toLowerCase())
+          ? {
+              ...u,
+              role: newRole,
+              pending_role: null,
+            }
+          : u
+      )
+    );
+    setRoleModal(null);
+    showToast(`Role permanently updated to "${ROLE_LABELS[newRole]}".`, 'success');
+  };
+
+  // Option 2: Send invitation for user approval
   const handleSendInvite = async () => {
     if (!roleModal) return;
     const { user, newRole } = roleModal;
 
-    const res = await inviteProfileRoleAdmin(user.id, newRole, adminEmail || 'Administrator');
+    const res = await inviteProfileRoleAdmin(user.id, newRole, adminEmail || 'Administrator', user);
     setUsers((prev) =>
       prev.map((u) =>
-        u.id === user.id
+        u.id === user.id || (u.email && user.email && u.email.toLowerCase() === user.email.toLowerCase())
           ? {
               ...u,
               pending_role: newRole,
@@ -101,27 +122,6 @@ const AdminUsers: React.FC = () => {
     );
     setRoleModal(null);
     showToast(res.message, 'success');
-  };
-
-  // Option 2: Admin Direct Override (Immediately activate)
-  const handleApplyImmediate = async () => {
-    if (!roleModal) return;
-    const { user, newRole } = roleModal;
-
-    await updateProfileRoleAdmin(user.id, newRole);
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === user.id
-          ? {
-              ...u,
-              role: newRole,
-              pending_role: null,
-            }
-          : u
-      )
-    );
-    setRoleModal(null);
-    showToast(`Role updated immediately to "${ROLE_LABELS[newRole]}".`, 'success');
   };
 
   const ROLE_BADGES: Record<string, { label: string; bg: string; text: string; icon: any }> = {
@@ -443,34 +443,36 @@ const AdminUsers: React.FC = () => {
             <div className="space-y-3 pt-1">
               <button
                 type="button"
-                onClick={handleSendInvite}
-                className="w-full p-4 rounded-2xl border-2 border-ayush-gold bg-amber-50/50 hover:bg-amber-100/60 transition-all text-left flex items-start gap-3 group"
+                onClick={handleApplyImmediate}
+                className="w-full p-4 rounded-2xl border-2 border-emerald-500 bg-emerald-50/80 hover:bg-emerald-100 transition-all text-left flex items-start gap-3 group shadow-sm"
               >
-                <div className="w-8 h-8 rounded-full bg-ayush-gold/20 flex items-center justify-center text-ayush-forest shrink-0 mt-0.5">
-                  <Send className="w-4 h-4 text-ayush-forest" />
+                <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white shrink-0 mt-0.5 shadow-sm">
+                  <Shield className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-ayush-forest group-hover:text-amber-900">
-                    Send Role Invitation (Recommended)
+                  <h4 className="text-sm font-bold text-emerald-950 group-hover:text-emerald-900">
+                    Apply Immediately (Direct Elevation)
                   </h4>
-                  <p className="text-xs text-ayush-charcoal/70 mt-0.5">
-                    User will see a notification asking <em>"Do you accept the role of {ROLE_LABELS[roleModal.newRole]}?"</em>. The role activates when they click Accept.
+                  <p className="text-xs text-emerald-800/80 mt-0.5">
+                    Instantly activates the <strong>{ROLE_LABELS[roleModal.newRole]}</strong> role in the cloud database. Persists permanently across all refreshes and sessions.
                   </p>
                 </div>
               </button>
 
               <button
                 type="button"
-                onClick={handleApplyImmediate}
-                className="w-full p-3.5 rounded-2xl border border-gray-200 hover:bg-gray-50 transition-all text-left flex items-start gap-3"
+                onClick={handleSendInvite}
+                className="w-full p-3.5 rounded-2xl border border-ayush-gold/50 bg-amber-50/40 hover:bg-amber-100/60 transition-all text-left flex items-start gap-3"
               >
-                <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-700 shrink-0 mt-0.5">
-                  <Shield className="w-3.5 h-3.5" />
+                <div className="w-7 h-7 rounded-full bg-ayush-gold/20 flex items-center justify-center text-ayush-forest shrink-0 mt-0.5">
+                  <Send className="w-3.5 h-3.5 text-ayush-forest" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-gray-800">Direct Admin Elevation</h4>
-                  <p className="text-[11px] text-gray-500 mt-0.5">
-                    Immediately assigns the role without waiting for user confirmation.
+                  <h4 className="text-xs font-bold text-ayush-forest">
+                    Send Role Invitation Instead
+                  </h4>
+                  <p className="text-[11px] text-ayush-charcoal/70 mt-0.5">
+                    Sends an approval prompt to the user's dashboard asking them to accept the role first.
                   </p>
                 </div>
               </button>

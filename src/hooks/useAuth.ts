@@ -7,7 +7,7 @@ import {
   useUser as useClerkUser,
 } from '@clerk/clerk-react';
 import { validateEmail, validatePassword } from '../lib/authValidation';
-import { createOrUpsertProfile, getLocalProfile } from '../lib/api/profiles';
+import { createOrUpsertProfile, getLocalProfile, getProfile } from '../lib/api/profiles';
 import { LocalUserButton } from '../components/auth/LocalUserButton';
 
 // ─── Password Hashing (SubtleCrypto / SHA-256) ───────────────────────────────
@@ -185,20 +185,26 @@ function useClerkAuthHook(localUser: LocalUser | null) {
 
   useEffect(() => {
     if (clerkUserObj && clerkUserObj.id) {
-      saveLocalUser({
-        id: clerkUserObj.id,
-        email: clerkUserObj.email,
-        name: clerkUserObj.name,
-        role: (clerkUserObj.role as any) || 'user',
-        pending_role: clerkUserObj.pending_role || null,
-        avatarUrl: clerkUserObj.avatarUrl,
-        createdAt: new Date().toISOString(),
-      });
-      void createOrUpsertProfile(clerkUserObj.id, {
-        name: clerkUserObj.name,
-        email: clerkUserObj.email,
-        role: (clerkUserObj.role as any) || 'user',
-        avatar_url: clerkUserObj.avatarUrl,
+      // Query cloud profile first so promotions by Admin reflect immediately on login
+      void getProfile(clerkUserObj.id).then((cloudProf) => {
+        const effectiveRole = cloudProf?.role || (clerkUserObj.role as any) || 'user';
+        const effectivePending = cloudProf?.pending_role !== undefined ? cloudProf.pending_role : clerkUserObj.pending_role;
+
+        saveLocalUser({
+          id: clerkUserObj.id,
+          email: clerkUserObj.email,
+          name: clerkUserObj.name,
+          role: effectiveRole,
+          pending_role: effectivePending || null,
+          avatarUrl: clerkUserObj.avatarUrl,
+          createdAt: new Date().toISOString(),
+        });
+        void createOrUpsertProfile(clerkUserObj.id, {
+          name: clerkUserObj.name,
+          email: clerkUserObj.email,
+          role: effectiveRole,
+          avatar_url: clerkUserObj.avatarUrl,
+        });
       });
     }
   }, [clerkUserObj?.id, clerkUserObj?.email, clerkUserObj?.name, clerkUserObj?.role, clerkUserObj?.avatarUrl]);
