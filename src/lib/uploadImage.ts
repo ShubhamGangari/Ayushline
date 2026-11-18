@@ -37,18 +37,26 @@ export async function uploadImage(
   const name = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.jpg`;
   const path = `${cleanFolder}/${name}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from(UPLOAD_BUCKET)
-    .upload(path, blob, {
-      contentType: 'image/jpeg',
-      cacheControl: '3600',
-      upsert: false,
-    });
+  try {
+    const { error: uploadError } = await supabase.storage
+      .from(UPLOAD_BUCKET)
+      .upload(path, blob, {
+        contentType: 'image/jpeg',
+        cacheControl: '3600',
+        upsert: false,
+      });
 
-  if (uploadError) {
-    throw new Error(`Storage upload failed: ${uploadError.message}`);
+    if (uploadError) {
+      console.warn('Storage bucket upload failed, falling back to compressed local format:', uploadError.message);
+      const dataUrl = await compressAndEncodeImage(file, maxWidth, maxHeight, quality);
+      return { url: dataUrl, isRemote: false };
+    }
+
+    const { data } = supabase.storage.from(UPLOAD_BUCKET).getPublicUrl(path);
+    return { url: data.publicUrl, isRemote: true };
+  } catch (err: any) {
+    console.warn('Storage exception, falling back to compressed local format:', err?.message);
+    const dataUrl = await compressAndEncodeImage(file, maxWidth, maxHeight, quality);
+    return { url: dataUrl, isRemote: false };
   }
-
-  const { data } = supabase.storage.from(UPLOAD_BUCKET).getPublicUrl(path);
-  return { url: data.publicUrl, isRemote: true };
 }
