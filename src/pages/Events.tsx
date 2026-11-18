@@ -14,6 +14,16 @@ const Events = () => {
   const [message, setMessage] = useState('');
   const [regUpdates, setRegUpdates] = useState(0);
 
+  // Form State
+  const [newTitle, setNewTitle] = useState('');
+  const [newType, setNewType] = useState('Seminar');
+  const [newDate, setNewDate] = useState('');
+  const [newLocation, setNewLocation] = useState('');
+  const [newDesc, setNewDesc] = useState('');
+  const [bannerUrl, setBannerUrl] = useState('');
+  const [bannerError, setBannerError] = useState('');
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+
   // Auth Modal State
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authActionName, setAuthActionName] = useState('');
@@ -37,17 +47,6 @@ const Events = () => {
     }
     loadEventsData();
   }, [regUpdates]);
-
-  // Form State
-  const [newTitle, setNewTitle] = useState('');
-  const [newType, setNewType] = useState('Seminar');
-  const [newDate, setNewDate] = useState('');
-  const [newLocation, setNewLocation] = useState('');
-  const [newDesc, setNewDesc] = useState('');
-  const [bannerUrl, setBannerUrl] = useState('');
-  const [bannerError, setBannerError] = useState('');
-
-  const bannerInputRef = useRef<HTMLInputElement>(null);
 
   const handleRegisterToggle = (eventItem: EventItem) => {
     if (!requireAuth('register for events')) return;

@@ -15,17 +15,28 @@ const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     async function loadStats() {
-      const doctors = await getAllDoctorsAdmin();
-      const posts = await getAllPostsAdmin();
-      const events = await getAllEventsAdmin();
-      const users = await getAllProfilesAdmin();
+      try {
+        const [doctors, posts, events, users] = await Promise.all([
+          getAllDoctorsAdmin().catch(() => []),
+          getAllPostsAdmin().catch(() => []),
+          getAllEventsAdmin().catch(() => []),
+          getAllProfilesAdmin().catch(() => []),
+        ]);
 
-      setPendingDoctors(doctors.filter(d => d.status === 'pending').length);
-      setPendingPosts(posts.filter(p => p.status === 'pending').length);
-      setPendingEvents(events.filter(e => e.status === 'pending').length);
-      setTotalUsers(users.length);
+        const safeDoctors = Array.isArray(doctors) ? doctors : [];
+        const safePosts = Array.isArray(posts) ? posts : [];
+        const safeEvents = Array.isArray(events) ? events : [];
+        const safeUsers = Array.isArray(users) ? users : [];
+
+        setPendingDoctors(safeDoctors.filter(d => d && d.status === 'pending').length);
+        setPendingPosts(safePosts.filter(p => p && p.status === 'pending').length);
+        setPendingEvents(safeEvents.filter(e => e && e.status === 'pending').length);
+        setTotalUsers(safeUsers.length);
+      } catch (err) {
+        console.error('Failed to load admin stats:', err);
+      }
     }
-    loadStats();
+    void loadStats();
   }, []);
 
   return (

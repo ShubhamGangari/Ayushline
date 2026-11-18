@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { cleanAuthErrorMessage } from '../../hooks/useAuth';
 
 interface Props {
   children: ReactNode;
@@ -31,12 +32,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // In production, only log the error ID — never expose raw stack traces to console
-    if (IS_PROD) {
-      console.error(`[Ayushline] Unhandled error — Ref: ${this.state.errorId}`);
-    } else {
-      console.error('Ayushline ErrorBoundary caught an unhandled error:', error, errorInfo);
-    }
+    console.error(`[Ayushline] Error caught by ErrorBoundary (Ref: ${this.state.errorId}):`, error, errorInfo);
   }
 
   private handleReload = () => {
@@ -75,14 +71,15 @@ export class ErrorBoundary extends Component<Props, State> {
               </p>
             )}
 
-            {!IS_PROD && this.state.error && (
-              <details className="mb-6 text-left">
-                <summary className="text-xs font-ui text-ayush-charcoal/50 cursor-pointer mb-1">
-                  Developer info
+            {this.state.error && (
+              <details className="mb-6 text-left border border-ayush-forest/10 rounded-xl p-2.5 bg-ayush-ivory/50">
+                <summary className="text-xs font-ui text-ayush-charcoal/60 cursor-pointer font-semibold select-none flex items-center justify-between hover:text-ayush-forest">
+                  <span>Technical details</span>
+                  <span className="text-[10px] text-ayush-charcoal/40">(click to view)</span>
                 </summary>
-                <pre className="text-xs text-red-600 bg-red-50 rounded-lg p-3 overflow-auto max-h-32 whitespace-pre-wrap">
-                  {this.state.error.message}
-                </pre>
+                <div className="mt-2 text-xs text-red-600 bg-red-50/80 rounded-lg p-2.5 overflow-auto max-h-32 font-mono break-words border border-red-100">
+                  {cleanAuthErrorMessage(this.state.error.message || 'An unexpected runtime error occurred.')}
+                </div>
               </details>
             )}
 

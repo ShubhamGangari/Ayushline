@@ -43,9 +43,15 @@ const AdminUsers: React.FC = () => {
 
   const loadUsers = async () => {
     setLoading(true);
-    const data = await getAllProfilesAdmin();
-    setUsers(data);
-    setLoading(false);
+    try {
+      const data = await getAllProfilesAdmin();
+      setUsers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load users:', err);
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -245,7 +251,7 @@ const AdminUsers: React.FC = () => {
                       </div>
                       <div className="min-w-0">
                         <p className="font-bold text-ayush-forest text-sm truncate">{u.name || 'Anonymous User'}</p>
-                        <p className="text-[10px] text-ayush-charcoal/40 font-mono truncate">{u.id.slice(0, 18)}...</p>
+                        <p className="text-[10px] text-ayush-charcoal/40 font-mono truncate">{String(u.id || '').slice(0, 18)}...</p>
                       </div>
                     </div>
 
@@ -339,7 +345,7 @@ const AdminUsers: React.FC = () => {
                               <p className="font-bold text-ayush-forest text-sm flex items-center gap-1.5">
                                 {u.name || 'Anonymous User'}
                               </p>
-                              <p className="text-[10px] text-ayush-charcoal/40 font-mono">{u.id.slice(0, 18)}...</p>
+                              <p className="text-[10px] text-ayush-charcoal/40 font-mono">{String(u.id || '').slice(0, 18)}...</p>
                             </div>
                           </div>
                         </td>

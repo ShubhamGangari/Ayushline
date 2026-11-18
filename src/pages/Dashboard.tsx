@@ -47,6 +47,7 @@ interface DashboardProps {
 
 export const Dashboard = ({ defaultTab }: DashboardProps) => {
   const { user, signOut } = useAuth();
+  const { isAdmin: isSystemAdmin } = useAdmin();
   const [searchParams, setSearchParams] = useSearchParams();
   
   // Determine current active tab
@@ -55,6 +56,7 @@ export const Dashboard = ({ defaultTab }: DashboardProps) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'consultations' | 'events'>(initialTab);
 
   const [activeRole, setActiveRole] = useState<UserRole | null>(null);
+  const isAdmin = isSystemAdmin || activeRole === 'admin';
   const [pendingRole, setPendingRole] = useState<UserRole | null>(null);
   const [roleActionLoading, setRoleActionLoading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -199,9 +201,6 @@ export const Dashboard = ({ defaultTab }: DashboardProps) => {
       </div>
     );
   }
-
-  const { isAdmin: isSystemAdmin } = useAdmin();
-  const isAdmin = isSystemAdmin || activeRole === 'admin';
 
   // Filter user appointments
   const filteredAppointments = appointments.filter((a) => {

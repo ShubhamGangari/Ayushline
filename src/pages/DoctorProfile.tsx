@@ -157,6 +157,13 @@ const DoctorProfile: React.FC = () => {
   const [showBooking, setShowBooking] = useState(false);
   const [liked, setLiked] = useState(false);
 
+  // Reviews state
+  const [reviews, setReviews] = useState<DoctorReview[]>([]);
+  const [reviewerName, setReviewerName] = useState('');
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [reviewSubmittedMsg, setReviewSubmittedMsg] = useState('');
+
   // Auth Guard Modal state
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authActionName, setAuthActionName] = useState('');
@@ -170,13 +177,6 @@ const DoctorProfile: React.FC = () => {
     if (callback) callback();
     return true;
   };
-
-  // Reviews state
-  const [reviews, setReviews] = useState<DoctorReview[]>([]);
-  const [reviewerName, setReviewerName] = useState('');
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState('');
-  const [reviewSubmittedMsg, setReviewSubmittedMsg] = useState('');
 
   useEffect(() => {
     let isMounted = true;
