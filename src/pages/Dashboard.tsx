@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useAdmin } from '../hooks/useAdmin';
 import { getProfile, getLocalProfile, acceptRoleInvite, declineRoleInvite, ROLE_LABELS, type UserRole } from '../lib/api/profiles';
+import { getPendingRoleInviteForUser } from '../lib/api/notifications';
 import { StudentDashboard } from '../components/dashboard/StudentDashboard';
 import { PractitionerDashboard } from '../components/dashboard/PractitionerDashboard';
 import { OrganizationDashboard } from '../components/dashboard/OrganizationDashboard';
@@ -86,12 +87,21 @@ export const Dashboard = ({ defaultTab }: DashboardProps) => {
 
   const refreshProfileData = () => {
     if (user?.id) {
-      void getProfile(user.id).then((p) => {
+      void getProfile(user.id).then(async (p) => {
         const profileRole = p?.role;
         const authRole = user.role as UserRole;
         const role = profileRole || authRole || 'user';
         setActiveRole(role);
-        setPendingRole(p?.pending_role || null);
+
+        // Check local profile first, then check live cloud database for pending role invitations
+        let pending = p?.pending_role || null;
+        if (!pending) {
+          const cloudInvite = await getPendingRoleInviteForUser(user.id, user.email);
+          if (cloudInvite?.newRole) {
+            pending = cloudInvite.newRole;
+          }
+        }
+        setPendingRole(pending);
         setLoading(false);
       });
     } else if (user) {
@@ -106,14 +116,18 @@ export const Dashboard = ({ defaultTab }: DashboardProps) => {
   useEffect(() => {
     refreshProfileData();
     window.addEventListener('ayush_auth_change', refreshProfileData);
-    return () => window.removeEventListener('ayush_auth_change', refreshProfileData);
+    window.addEventListener('ayush_notification_update', refreshProfileData);
+    return () => {
+      window.removeEventListener('ayush_auth_change', refreshProfileData);
+      window.removeEventListener('ayush_notification_update', refreshProfileData);
+    };
   }, [user?.id, user?.role]);
 
   const handleAcceptRole = async () => {
     if (!user) return;
     setRoleActionLoading(true);
     try {
-      const res = await acceptRoleInvite(user.id, user.email);
+      const res = await acceptRoleInvite(user.id, user.email, undefined, pendingRole || undefined);
       if (res.success) {
         setActiveRole(res.newRole);
         setPendingRole(null);

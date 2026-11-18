@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import {
   getNotifications,
+  fetchRemoteNotifications,
   markAsRead,
   markAllAsRead,
   clearNotifications,
@@ -32,14 +33,17 @@ export const NotificationBell = () => {
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const userIdentifier = user?.id || user?.email || '';
-
   const loadNotifs = () => {
-    if (!userIdentifier) {
+    if (!user) {
       setNotifications([]);
       return;
     }
-    setNotifications(getNotifications(userIdentifier));
+    setNotifications(getNotifications(user.id, user.email));
+    void fetchRemoteNotifications(user.id, user.email).then((remote) => {
+      if (remote && Array.isArray(remote)) {
+        setNotifications(remote);
+      }
+    });
   };
 
   useEffect(() => {
@@ -53,7 +57,7 @@ export const NotificationBell = () => {
       window.removeEventListener('ayush_auth_change', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
-  }, [userIdentifier]);
+  }, [user?.id, user?.email]);
 
   // Close on click outside
   useEffect(() => {
@@ -72,7 +76,7 @@ export const NotificationBell = () => {
     if (!user) return;
     setActionInProgress(notif.id);
     try {
-      await acceptRoleInvite(user.id, user.email, notif.id);
+      await acceptRoleInvite(user.id, user.email, notif.id, notif.roleInvite?.role);
       loadNotifs();
     } finally {
       setActionInProgress(null);
@@ -144,7 +148,7 @@ export const NotificationBell = () => {
                 {unreadCount > 0 && (
                   <button
                     type="button"
-                    onClick={() => markAllAsRead(userIdentifier)}
+                    onClick={() => markAllAsRead(user?.id, user?.email)}
                     className="text-xs font-semibold text-ayush-gold hover:underline flex items-center gap-1 cursor-pointer"
                     title="Mark all as read"
                   >
@@ -155,7 +159,7 @@ export const NotificationBell = () => {
                 {notifications.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => clearNotifications(userIdentifier)}
+                    onClick={() => clearNotifications(user?.id, user?.email)}
                     className="p-1 rounded text-white/60 hover:text-rose-300 transition-colors cursor-pointer"
                     title="Clear notifications"
                   >

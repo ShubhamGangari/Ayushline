@@ -1,5 +1,11 @@
 import { supabase, isSupabaseConfigured } from '../supabase';
-import { addNotification, updateNotificationRoleInviteStatus } from './notifications';
+import {
+  addNotification,
+  updateNotificationRoleInviteStatus,
+  getAllPendingRoleInvitesAdmin,
+  getPendingRoleInviteForUser,
+  getAllNotificationsRaw,
+} from './notifications';
 
 export type UserRole = 'user' | 'doctor' | 'student' | 'org' | 'admin';
 
@@ -292,6 +298,9 @@ export async function getAllProfilesAdmin(): Promise<Profile[]> {
     // ignore
   }
 
+  // Fetch pending cloud invites from Supabase notifications table
+  const pendingCloudInvites = await getAllPendingRoleInvitesAdmin();
+
   // Merge lists: localUsers first, then Supabase overwrites with fresh authoritative database state!
   const map = new Map<string, Profile>();
   localUsers.forEach((u) => {
@@ -316,6 +325,21 @@ export async function getAllProfilesAdmin(): Promise<Profile[]> {
       saveLocalProfile(merged);
     }
   });
+
+  // Apply cloud pending invites to all profiles so Admin sees live pending approval status
+  for (const [, profile] of map.entries()) {
+    const emailKey = profile.email?.toLowerCase();
+    const idKey = profile.id?.toLowerCase();
+    const cloudInvite = (emailKey ? pendingCloudInvites.get(emailKey) : null) || (idKey ? pendingCloudInvites.get(idKey) : null);
+    if (cloudInvite) {
+      profile.pending_role = cloudInvite.role;
+      profile.pending_role_invited_by = cloudInvite.invitedBy;
+    } else {
+      // Clear any stale local pending role if no cloud invite is active
+      profile.pending_role = null;
+      profile.pending_role_invited_by = null;
+    }
+  }
 
   return Array.from(map.values());
 }
@@ -470,16 +494,32 @@ export async function inviteProfileRoleAdmin(
 export async function acceptRoleInvite(
   userId: string,
   userEmail?: string,
-  notificationId?: string
+  notificationId?: string,
+  inviteRole?: UserRole
 ): Promise<{ success: boolean; newRole: UserRole }> {
-  const profile = getLocalProfile(userId) || (userEmail ? getLocalProfile(userEmail) : null);
-  const targetRole = profile?.pending_role;
+  let targetRole = inviteRole;
+  if (!targetRole && notificationId) {
+    const raw = getAllNotificationsRaw().find((n) => n.id === notificationId);
+    if (raw?.roleInvite?.role) targetRole = raw.roleInvite.role;
+  }
+  if (!targetRole) {
+    const profile = getLocalProfile(userId) || (userEmail ? getLocalProfile(userEmail) : null);
+    targetRole = profile?.pending_role;
+  }
+  if (!targetRole) {
+    const cloudInvite = await getPendingRoleInviteForUser(userId, userEmail);
+    if (cloudInvite?.newRole) {
+      targetRole = cloudInvite.newRole;
+      if (!notificationId) notificationId = cloudInvite.notifId;
+    }
+  }
 
   if (!targetRole) {
     return { success: false, newRole: 'user' };
   }
 
-  // Update profile
+  // Update profile locally
+  const profile = getLocalProfile(userId) || (userEmail ? getLocalProfile(userEmail) : null);
   if (profile) {
     profile.role = targetRole;
     profile.pending_role = null;
@@ -505,7 +545,7 @@ export async function acceptRoleInvite(
     // ignore
   }
 
-  // Update Supabase if configured
+  // Update Supabase profiles table
   if (isSupabaseConfigured && supabase) {
     try {
       const email = userEmail || profile?.email;
@@ -529,12 +569,35 @@ export async function acceptRoleInvite(
     } catch {}
   }
 
-  // Update notification status
+  // Update notification status in local cache and cloud
   if (notificationId) {
     updateNotificationRoleInviteStatus(notificationId, 'accepted');
   }
 
-  // Send positive confirmation notification
+  // Also ensure all pending role invites for this user are updated in Supabase
+  if (isSupabaseConfigured && supabase) {
+    void (async () => {
+      try {
+        const conditions: string[] = [];
+        if (userId) conditions.push(`user_id.eq.${userId}`);
+        if (userEmail) {
+          const em = userEmail.trim().toLowerCase();
+          conditions.push(`user_id.eq.${em}`);
+          conditions.push(`user_id.ilike.${em}`);
+        }
+        if (conditions.length > 0) {
+          await supabase
+            .from('notifications')
+            .update({ status: 'accepted', read: true })
+            .eq('type', 'role_invite')
+            .eq('status', 'pending')
+            .or(conditions.join(','));
+        }
+      } catch {}
+    })();
+  }
+
+  // Send positive confirmation notification to user
   const roleName = ROLE_LABELS[targetRole] || targetRole;
   addNotification({
     userId,
@@ -544,6 +607,49 @@ export async function acceptRoleInvite(
     message: `You have successfully accepted the role of ${roleName}. Your new permissions and capabilities are now active.`,
     status: 'completed',
   });
+
+  // Resolve admin who sent the invite
+  let invitedBy = profile?.pending_role_invited_by;
+  if (!invitedBy && notificationId) {
+    const rawNotif = getAllNotificationsRaw().find((n) => n.id === notificationId);
+    invitedBy = rawNotif?.roleInvite?.invitedBy || rawNotif?.date;
+  }
+  if (!invitedBy) {
+    const cloudInvite = await getPendingRoleInviteForUser(userId, userEmail);
+    invitedBy = cloudInvite?.invitedBy;
+  }
+
+  const userDisplayName = userEmail || profile?.name || 'User';
+
+  // Notify the inviting admin
+  if (invitedBy && invitedBy.includes('@')) {
+    addNotification({
+      userEmail: invitedBy,
+      type: 'system',
+      title: `Role Invitation Accepted 🎉`,
+      message: `${userDisplayName} has accepted the role of ${roleName}!`,
+      status: 'completed',
+    });
+  }
+
+  // Also notify all admins listed in environment variables
+  const envAdminEmails = (import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL || '')
+    .toString()
+    .split(',')
+    .map((e: string) => e.trim().toLowerCase())
+    .filter(Boolean);
+
+  for (const adminEmail of envAdminEmails) {
+    if (!invitedBy || adminEmail !== invitedBy.toLowerCase()) {
+      addNotification({
+        userEmail: adminEmail,
+        type: 'system',
+        title: `Role Invitation Accepted 🎉`,
+        message: `${userDisplayName} has accepted the role of ${roleName}!`,
+        status: 'completed',
+      });
+    }
+  }
 
   window.dispatchEvent(new CustomEvent('ayush_auth_change'));
   window.dispatchEvent(new Event('ayush_notification_update'));
@@ -582,6 +688,11 @@ export async function declineRoleInvite(
     // ignore
   }
 
+  if (!notificationId) {
+    const cloudInvite = await getPendingRoleInviteForUser(userId, userEmail);
+    if (cloudInvite?.notifId) notificationId = cloudInvite.notifId;
+  }
+
   if (notificationId) {
     updateNotificationRoleInviteStatus(notificationId, 'declined');
   }
@@ -594,6 +705,17 @@ export async function declineRoleInvite(
     message: 'You have declined the role invitation. Your current account permissions remain unchanged.',
     status: 'info',
   });
+
+  const invitedBy = profile?.pending_role_invited_by;
+  if (invitedBy && invitedBy.includes('@')) {
+    addNotification({
+      userEmail: invitedBy,
+      type: 'system',
+      title: 'Role Invitation Declined',
+      message: `${userEmail || profile?.name || 'User'} declined the role invitation.`,
+      status: 'info',
+    });
+  }
 
   window.dispatchEvent(new CustomEvent('ayush_auth_change'));
   window.dispatchEvent(new Event('ayush_notification_update'));
