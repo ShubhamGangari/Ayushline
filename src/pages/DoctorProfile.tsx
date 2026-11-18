@@ -527,7 +527,7 @@ const DoctorProfile: React.FC = () => {
             {whatsappNum && (
               <div className="bg-emerald-50 rounded-3xl p-6 border border-emerald-200">
                 <h3 className="text-lg font-display font-bold text-emerald-800 mb-2">Direct Contact</h3>
-                <p className="text-sm text-emerald-700 font-body mb-4">Chat directly with {doctor.name.split(' ')[0]} on WhatsApp.</p>
+                <p className="text-sm text-emerald-700 font-body mb-4">Chat directly with {doctor.name.trim().split(/\s+/)[0] || doctor.name} on WhatsApp.</p>
                 <a
                   href={`https://wa.me/${whatsappNum}?text=Hello%20${encodeURIComponent(doctor.name)}%2C%20I%20found%20your%20profile%20on%20AYUSHLINE.%20I%20would%20like%20to%20know%20more%20about%20your%20consultation.`}
                   target="_blank"

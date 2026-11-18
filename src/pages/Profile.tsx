@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getProfile, createOrUpsertProfile, type Profile as ProfileType } from '../lib/api/profiles';
+import { getProfile, getLocalProfile, createOrUpsertProfile, type Profile as ProfileType } from '../lib/api/profiles';
 import { uploadImage } from '../lib/uploadImage';
 import { Button } from '../components/ui/Button';
 import {
@@ -79,29 +79,30 @@ function getProfileCompleteness(profile: ProfileType | null): number {
 
 export const Profile = () => {
   const { user, signOut } = useAuth();
-  const [profile, setProfile] = useState<ProfileType | null>(null);
-  const [loading, setLoading] = useState(true);
+  const initialLocal = user?.id ? getLocalProfile(user.id) : null;
+  const [profile, setProfile] = useState<ProfileType | null>(initialLocal);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'notifications'>('profile');
 
-  // Profile form state
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState('user');
-  const [avatarUrl, setAvatarUrl] = useState('');
-  const [bio, setBio] = useState('');
-  const [whatsapp, setWhatsapp] = useState('');
-  const [phone, setPhone] = useState('');
-  const [city, setCity] = useState('');
-  const [address, setAddress] = useState('');
-  const [specialization, setSpecialization] = useState('');
-  const [qualification, setQualification] = useState('');
-  const [experienceYears, setExperienceYears] = useState('');
-  const [system, setSystem] = useState('ayurveda');
-  const [college, setCollege] = useState('');
-  const [accreditation, setAccreditation] = useState('');
+  // Profile form state (initialized instantly from local storage)
+  const [name, setName] = useState(initialLocal?.name || user?.name || '');
+  const [email, setEmail] = useState(initialLocal?.email || user?.email || '');
+  const [role, setRole] = useState(initialLocal?.role || (user?.role as any) || 'user');
+  const [avatarUrl, setAvatarUrl] = useState(initialLocal?.avatar_url || user?.avatarUrl || '');
+  const [bio, setBio] = useState(initialLocal?.bio || '');
+  const [whatsapp, setWhatsapp] = useState(initialLocal?.whatsapp || '');
+  const [phone, setPhone] = useState(initialLocal?.phone || '');
+  const [city, setCity] = useState(initialLocal?.city || '');
+  const [address, setAddress] = useState(initialLocal?.address || '');
+  const [specialization, setSpecialization] = useState(initialLocal?.specialization || '');
+  const [qualification, setQualification] = useState(initialLocal?.qualification || '');
+  const [experienceYears, setExperienceYears] = useState(initialLocal?.experience_years ? String(initialLocal.experience_years) : '');
+  const [system, setSystem] = useState(initialLocal?.system || 'ayurveda');
+  const [college, setCollege] = useState(initialLocal?.college || '');
+  const [accreditation, setAccreditation] = useState(initialLocal?.accreditation || '');
 
   // Security state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -236,7 +237,7 @@ export const Profile = () => {
   };
 
   const initials = name
-    ? name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+    ? name.trim().split(/\s+/).filter(Boolean).map((n) => n[0]).join('').toUpperCase().slice(0, 2) || 'U'
     : 'U';
 
   const completeness = getProfileCompleteness(profile);

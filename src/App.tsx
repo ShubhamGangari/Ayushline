@@ -11,28 +11,31 @@ function ScrollToTop() {
   return null;
 }
 
-// ─── Page-level loading spinner ───────────────────────────────────────────────
+// ─── Fast, lightweight page loading indicator ────────────────────────────────
 function PageLoader() {
   return (
-    <div className="min-h-[60vh] flex items-center justify-center bg-ayush-cream">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-10 h-10 border-4 border-ayush-gold border-t-transparent rounded-full animate-spin" role="status" aria-label="Loading page..." />
-        <span className="text-sm font-ui text-ayush-charcoal/50">Loading…</span>
+    <div className="min-h-[40vh] flex items-center justify-center bg-ayush-cream/60">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-3 border-ayush-gold border-t-transparent rounded-full animate-spin" role="status" aria-label="Loading..." />
+        <span className="text-xs font-ui text-ayush-charcoal/50">Loading…</span>
       </div>
     </div>
   );
 }
 
-// ─── Lazy-loaded pages (code-split per route) ─────────────────────────────────
-// Each page becomes its own JS chunk — loaded only when the user visits that route.
-// This reduces the initial bundle by ~70%.
-const Home               = lazy(() => import('./pages/Home'));
-const Category           = lazy(() => import('./pages/Category'));
-const Join               = lazy(() => import('./pages/Join'));
-const About              = lazy(() => import('./pages/About'));
-const Consult            = lazy(() => import('./pages/Consult'));
-const WhatsNew           = lazy(() => import('./pages/WhatsNew'));
-const Guidelines         = lazy(() => import('./pages/Guidelines'));
+// ─── Core Pages (Direct imports for instantaneous 0ms tab navigation) ────────
+import Home from './pages/Home';
+import Category from './pages/Category';
+import Join from './pages/Join';
+import About from './pages/About';
+import Consult from './pages/Consult';
+import WhatsNew from './pages/WhatsNew';
+import Guidelines from './pages/Guidelines';
+import Dashboard from './pages/Dashboard';
+import { Profile } from './pages/Profile';
+import NotFound from './pages/NotFound';
+
+// ─── Secondary Pages & Admin Portal (Code-split on demand) ───────────────────
 const DoctorRegistration = lazy(() => import('./pages/DoctorRegistration'));
 const SubmitContent      = lazy(() => import('./pages/SubmitContent'));
 const PrivacyPolicy      = lazy(() => import('./pages/PrivacyPolicy'));
@@ -40,11 +43,8 @@ const Disclaimer         = lazy(() => import('./pages/Disclaimer'));
 const ThankYou           = lazy(() => import('./pages/ThankYou'));
 const Sitemap            = lazy(() => import('./pages/Sitemap'));
 const SSOCallback        = lazy(() => import('./pages/SSOCallback'));
-const Dashboard          = lazy(() => import('./pages/Dashboard'));
 const DoctorProfile      = lazy(() => import('./pages/DoctorProfile'));
 const ArticleDetail      = lazy(() => import('./pages/ArticleDetail'));
-const Profile            = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
-const NotFound           = lazy(() => import('./pages/NotFound'));
 
 // Admin pages — separate chunk group (only loaded for admins)
 const AdminLayout    = lazy(() => import('./pages/admin/AdminLayout'));

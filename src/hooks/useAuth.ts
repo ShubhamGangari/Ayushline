@@ -53,7 +53,7 @@ const isLocalhost =
   typeof window !== 'undefined' &&
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-const CLERK_LOAD_TIMEOUT_MS = isLocalhost && PUBLISHABLE_KEY.startsWith('pk_live_') ? 1000 : 3500;
+const CLERK_LOAD_TIMEOUT_MS = 800; // Ultra-fast 800ms failover for instant page responsiveness
 
 let activeLocalAuthMode = false;
 
@@ -204,13 +204,21 @@ function useClerkAuthHook(localUser: LocalUser | null) {
   }, [clerkUserObj?.id, clerkUserObj?.email, clerkUserObj?.name, clerkUserObj?.role, clerkUserObj?.avatarUrl]);
 
   // Priority 1: User is signed into Clerk
-  if (cAuth?.isSignedIn && clerkUserObj) {
+  if (cAuth?.isSignedIn) {
+    const userToUse: LocalUser = (clerkUserObj as any) || localUser || {
+      id: cAuth.userId || 'user',
+      email: '',
+      name: 'User',
+      role: 'user',
+      avatarUrl: '',
+      createdAt: new Date().toISOString(),
+    };
     return {
       isLoaded: true,
       isSignedIn: true,
       userId: cAuth.userId,
       sessionId: cAuth.sessionId,
-      user: clerkUserObj,
+      user: userToUse,
       getToken: cAuth.getToken,
       signOut: async () => {
         setLocalSession(null);

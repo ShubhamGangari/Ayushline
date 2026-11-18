@@ -63,10 +63,11 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    // Strip console.log in production
+    // Strip console.log and debugger in production (keep console.error for diagnostics)
     esbuild: isProd
       ? {
-          drop: ['console', 'debugger'],
+          drop: ['debugger'],
+          pure: ['console.log'],
         }
       : {},
   };

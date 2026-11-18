@@ -45,7 +45,7 @@ export const LocalUserButton = () => {
 
   const displayAvatar = avatarFromProfile || currentUser.avatarUrl;
   const initials = currentUser.name
-    ? currentUser.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+    ? currentUser.name.trim().split(/\s+/).filter(Boolean).map((n) => n[0]).join('').toUpperCase().slice(0, 2) || 'U'
     : 'U';
 
   const ROLE_COLORS: Record<string, string> = {

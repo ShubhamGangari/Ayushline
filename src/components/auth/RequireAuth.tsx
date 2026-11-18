@@ -13,7 +13,9 @@ export const RequireAuth = ({ children, redirectTo = '/join' }: RequireAuthProps
   const { isSignedIn, isLoaded } = useAuth();
   const location = useLocation();
 
-  if (!isLoaded) {
+  const hasLocalSession = typeof window !== 'undefined' && Boolean(localStorage.getItem('ayush_active_session_v2'));
+
+  if (!isLoaded && !hasLocalSession) {
     return (
       <div className="min-h-screen bg-ayush-cream flex items-center justify-center">
         <div className="w-10 h-10 border-4 border-ayush-gold border-t-transparent rounded-full animate-spin"></div>
@@ -21,7 +23,7 @@ export const RequireAuth = ({ children, redirectTo = '/join' }: RequireAuthProps
     );
   }
 
-  if (!isSignedIn) {
+  if (!isSignedIn && !hasLocalSession) {
     return <Navigate to={redirectTo} state={{ from: location.pathname }} replace />;
   }
 

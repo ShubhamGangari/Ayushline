@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useAdmin } from '../hooks/useAdmin';
-import { getProfile, acceptRoleInvite, declineRoleInvite, ROLE_LABELS, type UserRole } from '../lib/api/profiles';
+import { getProfile, getLocalProfile, acceptRoleInvite, declineRoleInvite, ROLE_LABELS, type UserRole } from '../lib/api/profiles';
 import { StudentDashboard } from '../components/dashboard/StudentDashboard';
 import { PractitionerDashboard } from '../components/dashboard/PractitionerDashboard';
 import { OrganizationDashboard } from '../components/dashboard/OrganizationDashboard';
@@ -55,11 +55,12 @@ export const Dashboard = ({ defaultTab }: DashboardProps) => {
   const initialTab = defaultTab || tabFromQuery || 'overview';
   const [activeTab, setActiveTab] = useState<'overview' | 'consultations' | 'events'>(initialTab);
 
-  const [activeRole, setActiveRole] = useState<UserRole | null>(null);
+  const initialProfile = user?.id ? getLocalProfile(user.id) : null;
+  const [activeRole, setActiveRole] = useState<UserRole | null>(initialProfile?.role || (user?.role as UserRole) || 'user');
   const isAdmin = isSystemAdmin || activeRole === 'admin';
-  const [pendingRole, setPendingRole] = useState<UserRole | null>(null);
+  const [pendingRole, setPendingRole] = useState<UserRole | null>(initialProfile?.pending_role || null);
   const [roleActionLoading, setRoleActionLoading] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // User Specific Data State
   const [appointments, setAppointments] = useState<Appointment[]>([]);
