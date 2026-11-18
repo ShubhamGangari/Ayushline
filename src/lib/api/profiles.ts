@@ -47,14 +47,11 @@ export async function createOrUpsertProfile(
 
   // 1. Fetch remote Supabase role first to prevent downgrading elevated roles
   let remoteRole: UserRole | null = null;
-  let remotePendingRole: UserRole | null = null;
-  let remotePendingInvitedBy: string | null = null;
-  let remotePendingInvitedAt: string | null = null;
 
   if (isSupabaseConfigured && supabase) {
     try {
       const isEmail = userId.includes('@');
-      let query = supabase.from('profiles').select('role, pending_role, pending_role_invited_by, pending_role_invited_at');
+      let query = supabase.from('profiles').select('role');
       if (isEmail) {
         query = query.ilike('email', userId);
       } else {
@@ -63,11 +60,6 @@ export async function createOrUpsertProfile(
       const { data: remoteData } = await query.maybeSingle();
       if (remoteData?.role) {
         remoteRole = remoteData.role as UserRole;
-      }
-      if (remoteData?.pending_role) {
-        remotePendingRole = remoteData.pending_role as UserRole;
-        remotePendingInvitedBy = remoteData.pending_role_invited_by || null;
-        remotePendingInvitedAt = remoteData.pending_role_invited_at || null;
       }
     } catch {
       // ignore
@@ -90,15 +82,15 @@ export async function createOrUpsertProfile(
     resolvedRole = data.role;
   }
 
-  // 3. Resolve pending role
+  // 3. Resolve pending role (persisted in local state & notifications)
   const resolvedPendingRole =
     data.pending_role !== undefined
       ? data.pending_role
-      : (remotePendingRole ?? existingLocal?.pending_role ?? null);
+      : (existingLocal?.pending_role ?? null);
   const resolvedPendingInvitedBy =
-    data.pending_role_invited_by ?? remotePendingInvitedBy ?? existingLocal?.pending_role_invited_by ?? null;
+    data.pending_role_invited_by ?? existingLocal?.pending_role_invited_by ?? null;
   const resolvedPendingInvitedAt =
-    data.pending_role_invited_at ?? remotePendingInvitedAt ?? existingLocal?.pending_role_invited_at ?? null;
+    data.pending_role_invited_at ?? existingLocal?.pending_role_invited_at ?? null;
 
   const updatedLocal: Profile = {
     id: userId,
@@ -366,9 +358,6 @@ export async function updateProfileRoleAdmin(
       const upsertRecord: any = {
         id: userId,
         role,
-        pending_role: null,
-        pending_role_invited_by: null,
-        pending_role_invited_at: null,
         updated_at: new Date().toISOString(),
       };
       if (email) upsertRecord.email = email;
@@ -382,9 +371,6 @@ export async function updateProfileRoleAdmin(
           .from('profiles')
           .update({
             role,
-            pending_role: null,
-            pending_role_invited_by: null,
-            pending_role_invited_at: null,
             updated_at: new Date().toISOString(),
           })
           .ilike('email', email);
@@ -453,39 +439,7 @@ export async function inviteProfileRoleAdmin(
     // ignore
   }
 
-  // 3. Persist pending role to Supabase
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const upsertInvite: any = {
-        id: userId,
-        pending_role: newRole,
-        pending_role_invited_by: adminIdentifier,
-        pending_role_invited_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      if (targetEmail) upsertInvite.email = targetEmail;
-      if (updatedProfile.name) upsertInvite.name = updatedProfile.name;
-      if (updatedProfile.role) upsertInvite.role = updatedProfile.role;
-
-      await supabase.from('profiles').upsert(upsertInvite, { onConflict: 'id' });
-
-      if (targetEmail) {
-        await supabase
-          .from('profiles')
-          .update({
-            pending_role: newRole,
-            pending_role_invited_by: adminIdentifier,
-            pending_role_invited_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .ilike('email', targetEmail);
-      }
-    } catch (err) {
-      console.warn('Supabase invite role error:', err);
-    }
-  }
-
-  // 4. Dispatch an approval notification specifically targeted to this user
+  // 3. Dispatch an approval notification specifically targeted to this user
   addNotification({
     userId,
     userEmail: targetEmail || undefined,
@@ -559,9 +513,6 @@ export async function acceptRoleInvite(
         .from('profiles')
         .update({
           role: targetRole,
-          pending_role: null,
-          pending_role_invited_by: null,
-          pending_role_invited_at: null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', userId);
@@ -571,9 +522,6 @@ export async function acceptRoleInvite(
           .from('profiles')
           .update({
             role: targetRole,
-            pending_role: null,
-            pending_role_invited_by: null,
-            pending_role_invited_at: null,
             updated_at: new Date().toISOString(),
           })
           .ilike('email', email);
@@ -636,34 +584,6 @@ export async function declineRoleInvite(
 
   if (notificationId) {
     updateNotificationRoleInviteStatus(notificationId, 'declined');
-  }
-
-  // Update Supabase if configured
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const email = userEmail || profile?.email;
-      await supabase
-        .from('profiles')
-        .update({
-          pending_role: null,
-          pending_role_invited_by: null,
-          pending_role_invited_at: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
-
-      if (email) {
-        await supabase
-          .from('profiles')
-          .update({
-            pending_role: null,
-            pending_role_invited_by: null,
-            pending_role_invited_at: null,
-            updated_at: new Date().toISOString(),
-          })
-          .ilike('email', email);
-      }
-    } catch {}
   }
 
   addNotification({
