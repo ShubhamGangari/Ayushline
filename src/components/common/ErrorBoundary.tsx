@@ -75,7 +75,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </p>
             )}
 
-            {this.state.error && (
+            {!IS_PROD && this.state.error && (
               <details className="mb-6 text-left">
                 <summary className="text-xs font-ui text-ayush-charcoal/50 cursor-pointer mb-1">
                   Developer info

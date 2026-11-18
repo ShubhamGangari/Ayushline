@@ -1,14 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   useAuth as useClerkAuth,
-  UserButton as ClerkUserButton,
   useClerk,
   useSignIn as useClerkSignIn,
   useSignUp as useClerkSignUp,
   useUser as useClerkUser,
 } from '@clerk/clerk-react';
 import { validateEmail, validatePassword } from '../lib/authValidation';
-import { createOrUpsertProfile } from '../lib/api/profiles';
+import { createOrUpsertProfile, getLocalProfile } from '../lib/api/profiles';
 import { LocalUserButton } from '../components/auth/LocalUserButton';
 
 // ─── Password Hashing (SubtleCrypto / SHA-256) ───────────────────────────────
@@ -33,6 +32,7 @@ export interface LocalUser {
   email: string;
   name: string;
   role: 'user' | 'admin' | 'doctor' | 'student' | 'org';
+  pending_role?: string | null;
   avatarUrl?: string;
   password?: string;
   createdAt: string;
@@ -152,22 +152,26 @@ function useLocalAuthState() {
 
 // ─── Clerk Authentication Hook (Guaranteed zero conditional returns before hooks) ───
 function useClerkAuthHook(localUser: LocalUser | null) {
-  // ALL hooks MUST be invoked at the top before any conditional return statements
   const cAuth = useClerkAuth();
   const cUser = useClerkUser();
   const fallbackFromTimeout = useClerkFallbackActive(cAuth.isLoaded);
 
   const clerkUserObj = useMemo(() => {
     if (!cUser.user) return null;
+    const email = cUser.user.primaryEmailAddress?.emailAddress || '';
+    const localProf = getLocalProfile(cUser.user.id) || (email ? getLocalProfile(email) : null);
+
     return {
       id: cUser.user.id,
-      email: cUser.user.primaryEmailAddress?.emailAddress || '',
+      email,
       name: cUser.user.fullName || cUser.user.firstName || 'User',
-      avatarUrl: cUser.user.imageUrl,
+      avatarUrl: localProf?.avatar_url || cUser.user.imageUrl,
       role:
+        (localProf?.role as any) ||
         (cUser.user.publicMetadata?.role as any) ||
         (cUser.user.unsafeMetadata?.role as any) ||
         'user',
+      pending_role: localProf?.pending_role || null,
     };
   }, [
     cUser.user?.id,
@@ -186,6 +190,7 @@ function useClerkAuthHook(localUser: LocalUser | null) {
         email: clerkUserObj.email,
         name: clerkUserObj.name,
         role: (clerkUserObj.role as any) || 'user',
+        pending_role: clerkUserObj.pending_role || null,
         avatarUrl: clerkUserObj.avatarUrl,
         createdAt: new Date().toISOString(),
       });
@@ -198,7 +203,7 @@ function useClerkAuthHook(localUser: LocalUser | null) {
     }
   }, [clerkUserObj?.id, clerkUserObj?.email, clerkUserObj?.name, clerkUserObj?.role, clerkUserObj?.avatarUrl]);
 
-  // Priority 1: User is signed into Clerk (e.g. Google or Clerk on production)
+  // Priority 1: User is signed into Clerk
   if (cAuth?.isSignedIn && clerkUserObj) {
     return {
       isLoaded: true,
@@ -214,7 +219,7 @@ function useClerkAuthHook(localUser: LocalUser | null) {
     };
   }
 
-  // Priority 2: User is signed into Local storage session (e.g. email/password on localhost or fallback)
+  // Priority 2: User is signed into Local storage session
   if (localUser) {
     return {
       isLoaded: true,
@@ -273,19 +278,8 @@ export function useAuth() {
   return useLocalAuthHook(localUser);
 }
 
-// ─── Clerk SignIn Hook ────────────────────────────────────────────────────────
-function useClerkSignInHook(localUser: LocalUser | null) {
-  const csi = useClerkSignIn();
-  const fallbackFromTimeout = useClerkFallbackActive(csi?.isLoaded ?? false);
-  const localSignIn = useLocalSignInHook(localUser);
-
-  if (csi?.isLoaded && csi?.signIn && !fallbackFromTimeout) {
-    return csi;
-  }
-  return localSignIn;
-}
-
-function useLocalSignInHook(localUser: LocalUser | null) {
+// ─── Local Sign-In Factory (Non-hook function) ──────────────────────────────
+export function createLocalSignIn(localUser: LocalUser | null) {
   return {
     isLoaded: true,
     signIn: {
@@ -305,8 +299,7 @@ function useLocalSignInHook(localUser: LocalUser | null) {
           throw {
             errors: [
               {
-                message:
-                  'No account found with this email address. Please sign up first.',
+                message: 'No account found with this email address. Please sign up first.',
               },
             ],
           };
@@ -318,8 +311,7 @@ function useLocalSignInHook(localUser: LocalUser | null) {
             throw {
               errors: [
                 {
-                  message:
-                    'Incorrect password! Please check your password and try again.',
+                  message: 'Incorrect password! Please check your password and try again.',
                 },
               ],
             };
@@ -359,21 +351,35 @@ function useLocalSignInHook(localUser: LocalUser | null) {
   };
 }
 
+// ─── Clerk SignIn Hook ────────────────────────────────────────────────────────
+function useClerkSignInHook(localUser: LocalUser | null) {
+  const csi = useClerkSignIn();
+  const fallbackFromTimeout = useClerkFallbackActive(csi?.isLoaded ?? false);
+  const localSignIn = useMemo(() => createLocalSignIn(localUser), [localUser]);
+
+  if (csi?.isLoaded && csi?.signIn && !fallbackFromTimeout) {
+    return csi;
+  }
+  return localSignIn;
+}
+
 export function useSignIn() {
   const localUser = useLocalAuthState();
   if (isClerkConfigured) {
     return useClerkSignInHook(localUser);
   }
-  return useLocalSignInHook(localUser);
+  return useMemo(() => createLocalSignIn(localUser), [localUser]);
 }
 
 // ─── Error Message Sanitizer (Never reveal third-party vendor names) ──────────
 export function cleanAuthErrorMessage(msg: string): string {
   if (!msg) return 'An unexpected error occurred. Please try again.';
   return msg
+    .replace(/clerk\s+authentication\s+service/gi, 'Authentication service')
     .replace(/clerk/gi, 'Authentication')
     .replace(/supabase/gi, 'Database')
     .replace(/vercel/gi, 'Cloud')
+    .replace(/failed to fetch/gi, 'Network connection interrupted. Please try again.')
     .trim();
 }
 
@@ -415,11 +421,11 @@ function useClerkGoogleOAuthHook() {
       throw new Error('Authentication service is not configured. Please use email registration.');
     }
 
-    const isLocalhost =
+    const isLocal =
       typeof window !== 'undefined' &&
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-    if (isLocalhost && PUBLISHABLE_KEY.startsWith('pk_live_')) {
+    if (isLocal && PUBLISHABLE_KEY.startsWith('pk_live_')) {
       throw new Error(
         'Google Sign-In is configured for the live production domain (ayushline.com). For local testing, please register with your email.'
       );
@@ -458,11 +464,11 @@ function useClerkGoogleOAuthHook() {
       throw new Error('Authentication service is not configured. Please use email sign-in.');
     }
 
-    const isLocalhost =
+    const isLocal =
       typeof window !== 'undefined' &&
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-    if (isLocalhost && PUBLISHABLE_KEY.startsWith('pk_live_')) {
+    if (isLocal && PUBLISHABLE_KEY.startsWith('pk_live_')) {
       throw new Error(
         'Google Sign-In is configured for the live production domain (ayushline.com). For local testing, please log in with your email.'
       );
@@ -512,21 +518,10 @@ export function useGoogleOAuth() {
   return useLocalGoogleOAuthHook();
 }
 
-// ─── Clerk SignUp Hook ────────────────────────────────────────────────────────
+// ─── Local Sign-Up Factory (Non-hook function) ──────────────────────────────
 let lastCreatedLocalUser: LocalUser | null = null;
 
-function useClerkSignUpHook(localUser: LocalUser | null) {
-  const csu = useClerkSignUp();
-  const fallbackFromTimeout = useClerkFallbackActive(csu?.isLoaded ?? false);
-  const localSignUp = useLocalSignUpHook(localUser);
-
-  if (csu?.isLoaded && csu?.signUp && !fallbackFromTimeout) {
-    return csu;
-  }
-  return localSignUp;
-}
-
-function useLocalSignUpHook(localUser: LocalUser | null) {
+export function createLocalSignUp(localUser: LocalUser | null) {
   return {
     isLoaded: true,
     signUp: {
@@ -597,7 +592,7 @@ function useLocalSignUpHook(localUser: LocalUser | null) {
         });
 
         return {
-          status: 'missing_requirements',
+          status: 'complete',
           createdSessionId: `sess_${newUser.id}`,
           createdUserId: newUser.id,
         };
@@ -632,12 +627,24 @@ function useLocalSignUpHook(localUser: LocalUser | null) {
   };
 }
 
+// ─── Clerk SignUp Hook ────────────────────────────────────────────────────────
+function useClerkSignUpHook(localUser: LocalUser | null) {
+  const csu = useClerkSignUp();
+  const fallbackFromTimeout = useClerkFallbackActive(csu?.isLoaded ?? false);
+  const localSignUp = useMemo(() => createLocalSignUp(localUser), [localUser]);
+
+  if (csu?.isLoaded && csu?.signUp && !fallbackFromTimeout) {
+    return csu;
+  }
+  return localSignUp;
+}
+
 export function useSignUp() {
   const localUser = useLocalAuthState();
   if (isClerkConfigured) {
     return useClerkSignUpHook(localUser);
   }
-  return useLocalSignUpHook(localUser);
+  return useMemo(() => createLocalSignUp(localUser), [localUser]);
 }
 
 export const UserButton = LocalUserButton;

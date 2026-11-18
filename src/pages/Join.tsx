@@ -46,6 +46,7 @@ const Join = () => {
     if (isForgotPassword) {
       return (
         <CustomForgotPassword
+          key="auth-forgot-password-view"
           onBack={() => navigate('/join/sign-in')}
           afterResetUrl="/join/sign-in"
         />
@@ -55,6 +56,7 @@ const Join = () => {
     if (isSignIn) {
       return (
         <CustomSignIn
+          key="auth-sign-in-view"
           onBack={handleBackToRoles}
           afterSignInUrl="/dashboard"
         />
@@ -64,6 +66,7 @@ const Join = () => {
     if (isSignUp) {
       return (
         <CustomSignUp
+          key={`auth-sign-up-view-${roleParam || 'user'}`}
           onBack={handleBackToRoles}
           afterSignUpUrl="/dashboard"
           selectedRole={roleParam}

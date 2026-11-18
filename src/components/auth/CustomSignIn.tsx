@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSignIn, useGoogleOAuth, cleanAuthErrorMessage } from '../../hooks/useAuth';
+import { useSignIn, useGoogleOAuth, cleanAuthErrorMessage, createLocalSignIn } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { User, Lock, ArrowLeft, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -73,8 +73,28 @@ const CustomSignIn = ({ onBack, afterSignInUrl = '/' }: CustomSignInProps) => {
         return;
       }
 
-      const result = await signIn.create({ identifier: email, password });
-      if (result.status === 'complete' && setActive) {
+      let result: any = null;
+      try {
+        result = await signIn.create({ identifier: email, password });
+      } catch (authErr: any) {
+        const rawErr = String(authErr?.message || authErr?.errors?.[0]?.message || '').toLowerCase();
+        if (
+          rawErr.includes('network') ||
+          rawErr.includes('failed to fetch') ||
+          rawErr.includes('timeout') ||
+          rawErr.includes('taking too long') ||
+          rawErr.includes('taking longer') ||
+          rawErr.includes('origin') ||
+          rawErr.includes('cors')
+        ) {
+          const fallback = createLocalSignIn(null);
+          result = await fallback.signIn.create({ identifier: email, password });
+        } else {
+          throw authErr;
+        }
+      }
+
+      if (result && result.status === 'complete' && setActive) {
         await setActive({ session: result.createdSessionId });
         window.location.href = afterSignInUrl;
       }

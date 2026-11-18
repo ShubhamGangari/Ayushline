@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSignIn } from '../../hooks/useAuth';
+import { useSignIn, cleanAuthErrorMessage } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { Mail, Lock, Code, ArrowLeft, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { validateEmail, validatePassword } from '../../lib/authValidation';
@@ -42,7 +42,8 @@ const CustomForgotPassword = ({ onBack, afterResetUrl = '/join/sign-in' }: Custo
       });
       setStep('verify');
     } catch (err: any) {
-      setError(err.errors?.[0]?.message || 'Failed to send reset email. Please check your email address.');
+      const msg = err.errors?.[0]?.message || err.message || 'Failed to send reset email. Please check your email address.';
+      setError(cleanAuthErrorMessage(msg));
     }
     setLoading(false);
   };
@@ -83,7 +84,8 @@ const CustomForgotPassword = ({ onBack, afterResetUrl = '/join/sign-in' }: Custo
         setError('Unable to reset password. Please try again.');
       }
     } catch (err: any) {
-      setError(err.errors?.[0]?.message || 'Failed to reset password. The OTP code may have expired.');
+      const msg = err.errors?.[0]?.message || err.message || 'Failed to reset password. The OTP code may have expired.';
+      setError(cleanAuthErrorMessage(msg));
     }
     setLoading(false);
   };

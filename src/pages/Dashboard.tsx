@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useAdmin } from '../hooks/useAdmin';
-import { getProfile, type UserRole } from '../lib/api/profiles';
+import { getProfile, acceptRoleInvite, declineRoleInvite, ROLE_LABELS, type UserRole } from '../lib/api/profiles';
 import { StudentDashboard } from '../components/dashboard/StudentDashboard';
 import { PractitionerDashboard } from '../components/dashboard/PractitionerDashboard';
 import { OrganizationDashboard } from '../components/dashboard/OrganizationDashboard';
@@ -55,6 +55,8 @@ export const Dashboard = ({ defaultTab }: DashboardProps) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'consultations' | 'events'>(initialTab);
 
   const [activeRole, setActiveRole] = useState<UserRole | null>(null);
+  const [pendingRole, setPendingRole] = useState<UserRole | null>(null);
+  const [roleActionLoading, setRoleActionLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // User Specific Data State
@@ -79,14 +81,14 @@ export const Dashboard = ({ defaultTab }: DashboardProps) => {
     setSearchParams({ tab });
   };
 
-  // Load profile & role
-  useEffect(() => {
+  const refreshProfileData = () => {
     if (user?.id) {
       void getProfile(user.id).then((p) => {
         const profileRole = p?.role;
         const authRole = user.role as UserRole;
         const role = profileRole || authRole || 'user';
         setActiveRole(role);
+        setPendingRole(p?.pending_role || null);
         setLoading(false);
       });
     } else if (user) {
@@ -95,7 +97,43 @@ export const Dashboard = ({ defaultTab }: DashboardProps) => {
     } else {
       setLoading(false);
     }
+  };
+
+  // Load profile & role
+  useEffect(() => {
+    refreshProfileData();
+    window.addEventListener('ayush_auth_change', refreshProfileData);
+    return () => window.removeEventListener('ayush_auth_change', refreshProfileData);
   }, [user?.id, user?.role]);
+
+  const handleAcceptRole = async () => {
+    if (!user) return;
+    setRoleActionLoading(true);
+    try {
+      const res = await acceptRoleInvite(user.id, user.email);
+      if (res.success) {
+        setActiveRole(res.newRole);
+        setPendingRole(null);
+        setActionMessage(`Role successfully updated to "${ROLE_LABELS[res.newRole]}"!`);
+        setTimeout(() => setActionMessage(null), 5000);
+      }
+    } finally {
+      setRoleActionLoading(false);
+    }
+  };
+
+  const handleDeclineRole = async () => {
+    if (!user) return;
+    setRoleActionLoading(true);
+    try {
+      await declineRoleInvite(user.id, user.email);
+      setPendingRole(null);
+      setActionMessage('Role invitation declined.');
+      setTimeout(() => setActionMessage(null), 4000);
+    } finally {
+      setRoleActionLoading(false);
+    }
+  };
 
   // Load user specific appointments & events
   const loadUserData = async () => {
@@ -232,6 +270,48 @@ export const Dashboard = ({ defaultTab }: DashboardProps) => {
             <button onClick={() => setActionMessage(null)} className="text-sm font-bold hover:underline">
               Dismiss
             </button>
+          </div>
+        )}
+
+        {/* Pending Role Invitation Offer Banner */}
+        {pendingRole && (
+          <div className="bg-gradient-to-r from-amber-500/15 via-ayush-gold/20 to-emerald-500/15 border-2 border-ayush-gold p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-5 shadow-sm animate-fade-in">
+            <div className="flex items-center gap-4 text-center md:text-left">
+              <div className="w-14 h-14 rounded-2xl bg-ayush-forest text-ayush-gold flex items-center justify-center shrink-0 shadow-md">
+                <ShieldCheck className="w-7 h-7" />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-ayush-gold text-ayush-forest inline-block mb-1">
+                  Role Promotion Invitation
+                </span>
+                <h3 className="font-display font-bold text-xl text-ayush-forest">
+                  Invitation to become {ROLE_LABELS[pendingRole]} 🎉
+                </h3>
+                <p className="text-xs text-ayush-charcoal/80 font-ui mt-0.5 max-w-xl">
+                  The System Administrator has officially invited you to upgrade your account to <strong>{ROLE_LABELS[pendingRole]}</strong>. Would you like to accept this role?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0 w-full md:w-auto justify-end">
+              <button
+                type="button"
+                disabled={roleActionLoading}
+                onClick={handleAcceptRole}
+                className="flex-1 md:flex-initial px-6 py-3 rounded-xl bg-ayush-forest hover:bg-ayush-forest/90 text-white font-ui text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4 text-ayush-gold" />
+                {roleActionLoading ? 'Activating...' : 'Accept Role'}
+              </button>
+              <button
+                type="button"
+                disabled={roleActionLoading}
+                onClick={handleDeclineRole}
+                className="px-4 py-3 rounded-xl border border-ayush-forest/20 hover:bg-white text-ayush-charcoal font-ui text-xs font-semibold transition-all cursor-pointer"
+              >
+                Decline
+              </button>
+            </div>
           </div>
         )}
 

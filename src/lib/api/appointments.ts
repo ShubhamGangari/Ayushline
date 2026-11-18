@@ -56,8 +56,10 @@ export async function createAppointment(appointmentData: Partial<Appointment>): 
   const currentLocal = getLocalAppointments();
   saveLocalAppointments([newAppt, ...currentLocal]);
 
-  // Always trigger a notification for the patient
+  // Always trigger a notification targeted specifically to the patient
   addNotification({
+    userId: newAppt.patient_id || undefined,
+    userEmail: newAppt.patient_email || undefined,
     type: 'consultation',
     title: 'Consultation Requested ⏳',
     message: `Your appointment request for ${newAppt.preferred_date} at ${newAppt.preferred_time} with Dr. ${newAppt.doctor_name} has been submitted. Status: Pending doctor confirmation.`,
@@ -177,6 +179,8 @@ export async function updateAppointmentStatus(
   if (targetAppt) {
     const statusLabel = newStatus === 'confirmed' ? 'Confirmed ✅' : newStatus === 'cancelled' ? 'Declined ❌' : 'Completed 🎉';
     addNotification({
+      userId: targetAppt.patient_id || undefined,
+      userEmail: targetAppt.patient_email || undefined,
       type: 'consultation',
       title: `Consultation ${statusLabel}`,
       message: `Your appointment with Dr. ${targetAppt.doctor_name || 'Practitioner'} for ${targetAppt.preferred_date} is now ${newStatus}.`,

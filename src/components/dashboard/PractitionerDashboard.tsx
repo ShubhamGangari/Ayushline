@@ -51,6 +51,13 @@ export const PractitionerDashboard = () => {
   const avatarFileInputRef = useRef<HTMLInputElement>(null);
   const articleImageInputRef = useRef<HTMLInputElement>(null);
 
+  // Public Doctor Profile ID & Status
+  const [doctorId, setDoctorId] = useState<string | number>('1');
+  const [doctorStatus, setDoctorStatus] = useState<'pending' | 'approved' | 'rejected'>('pending');
+
+  // Real Appointments
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+
   const handleArticleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -77,13 +84,6 @@ export const PractitionerDashboard = () => {
       setTimeout(() => setAvatarError(''), 5000);
     }
   };
-
-  // Public Doctor Profile ID & Status
-  const [doctorId, setDoctorId] = useState<string | number>('1');
-  const [doctorStatus, setDoctorStatus] = useState<'pending' | 'approved' | 'rejected'>('pending');
-
-  // Real Appointments
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
 
   const loadAppointments = async () => {
     if (!user) return;

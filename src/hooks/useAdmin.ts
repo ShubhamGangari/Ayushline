@@ -1,4 +1,5 @@
 import { useAuth } from './useAuth';
+import { getLocalProfile } from '../lib/api/profiles';
 
 // Environment variables for admin configuration
 const envAdminIdsRaw = (import.meta.env.VITE_ADMIN_USER_ID || import.meta.env.VITE_ADMIN_USER_IDS || '').toString();
@@ -27,9 +28,12 @@ export function useAdmin() {
   const userId = auth.userId || auth.user?.id || '';
   const userRole = (auth.user?.role || '').toString().toLowerCase();
 
+  const localProf = userId ? getLocalProfile(userId) : (userEmail ? getLocalProfile(userEmail) : null);
+  const isAdminByProfile = localProf?.role === 'admin';
+
   const isAdminByEnvEmail = Boolean(userEmail && ALL_ADMIN_EMAILS.has(userEmail));
   const isAdminByEnvId = Boolean(userId && ALL_ADMIN_USER_IDS.has(userId));
-  const isAdminByRole = userRole === 'admin';
+  const isAdminByRole = userRole === 'admin' || isAdminByProfile;
 
   const isAdmin = Boolean(auth.isSignedIn && (isAdminByEnvEmail || isAdminByEnvId || isAdminByRole));
 

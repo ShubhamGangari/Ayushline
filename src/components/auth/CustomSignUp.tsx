@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSignUp, useGoogleOAuth, cleanAuthErrorMessage } from '../../hooks/useAuth';
+import { useSignUp, useGoogleOAuth, cleanAuthErrorMessage, createLocalSignUp } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { User, Lock, ArrowLeft, Eye, EyeOff, AlertCircle, CheckCircle2, GraduationCap, Stethoscope, Building2, Building, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -157,13 +157,39 @@ const CustomSignUp = ({ onBack, afterSignUpUrl = '/', selectedRole = 'user' }: C
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ') || undefined;
 
-      const result = await signUp.create({
-        emailAddress: email,
-        password,
-        firstName,
-        lastName,
-        role,
-      });
+      let result: any = null;
+      try {
+        result = await signUp.create({
+          emailAddress: email,
+          password,
+          firstName,
+          lastName,
+          role,
+        });
+      } catch (authErr: any) {
+        const rawErr = String(authErr?.message || authErr?.errors?.[0]?.message || '').toLowerCase();
+        if (
+          rawErr.includes('network') ||
+          rawErr.includes('failed to fetch') ||
+          rawErr.includes('timeout') ||
+          rawErr.includes('taking too long') ||
+          rawErr.includes('taking longer') ||
+          rawErr.includes('origin') ||
+          rawErr.includes('domain') ||
+          rawErr.includes('cors')
+        ) {
+          const fallback = createLocalSignUp(null);
+          result = await fallback.signUp.create({
+            emailAddress: email,
+            password,
+            firstName,
+            lastName,
+            role,
+          });
+        } else {
+          throw authErr;
+        }
+      }
 
       if (result.status === 'complete' && setActive) {
         await setActive({ session: result.createdSessionId });
@@ -225,7 +251,8 @@ const CustomSignUp = ({ onBack, afterSignUpUrl = '/', selectedRole = 'user' }: C
         setError('Verification service unavailable. Please try again.');
       }
     } catch (err: any) {
-      setError(err.errors?.[0]?.message || 'Invalid verification code. Please check your email and try again.');
+      const msg = err.errors?.[0]?.message || err.message || 'Invalid verification code. Please check your email and try again.';
+      setError(cleanAuthErrorMessage(msg));
     }
     setVerifyingOtp(false);
   };
@@ -239,7 +266,8 @@ const CustomSignUp = ({ onBack, afterSignUpUrl = '/', selectedRole = 'user' }: C
         setInfoMsg('A new 6-digit OTP code has been sent to your email address!');
       }
     } catch (err: any) {
-      setError(err.errors?.[0]?.message || 'Failed to resend code. Please try again in a few seconds.');
+      const msg = err.errors?.[0]?.message || err.message || 'Failed to resend code. Please try again in a few seconds.';
+      setError(cleanAuthErrorMessage(msg));
     }
   };
 

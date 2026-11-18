@@ -136,13 +136,18 @@ const Home = () => {
               <div className="relative mx-auto">
                 <div className="relative rounded-3xl overflow-hidden shadow-xl border-4 border-white bg-white p-2.5">
                   <img
-                    src="https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800&auto=format&fit=crop&q=80"
+                    src="https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=700&auto=format&fit=crop&q=75"
                     alt="AYUSH Healing & Wellness"
+                    width="700"
+                    height="450"
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
                     className="w-full h-[320px] lg:h-[350px] object-cover rounded-2xl"
                     onError={(e) => {
                       const target = e.currentTarget;
                       target.onerror = null;
-                      target.src = 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=800&auto=format&fit=crop&q=80';
+                      target.src = 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=700&auto=format&fit=crop&q=75';
                     }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-ayush-forest/85 via-transparent to-transparent rounded-2xl"></div>

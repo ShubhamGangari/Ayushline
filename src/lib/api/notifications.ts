@@ -1,6 +1,10 @@
+import { type UserRole } from './profiles';
+
 export interface AppNotification {
   id: string;
-  type: 'consultation' | 'event' | 'system';
+  userId?: string;
+  userEmail?: string;
+  type: 'consultation' | 'event' | 'system' | 'role_invite';
   title: string;
   message: string;
   status?: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed' | 'info';
@@ -9,66 +13,84 @@ export interface AppNotification {
   time?: string;
   createdAt: string;
   read: boolean;
+  roleInvite?: {
+    role: UserRole;
+    roleLabel: string;
+    invitedBy: string;
+    status: 'pending' | 'accepted' | 'declined';
+  };
 }
 
-const STORAGE_KEY = 'ayush_user_notifications';
+const STORAGE_KEY = 'ayush_user_notifications_v3';
+const LEGACY_STORAGE_KEYS = ['ayush_user_notifications', 'ayush_notifications'];
 
-export const INITIAL_NOTIFICATIONS: AppNotification[] = [
-  {
-    id: 'notif-1',
-    type: 'consultation',
-    title: 'Consultation Accepted 🎉',
-    message: 'Dr. Ananya Sharma (Ayurveda Specialist) accepted your video consultation request.',
-    status: 'confirmed',
-    doctorName: 'Dr. Ananya Sharma',
-    date: 'Tomorrow',
-    time: '10:30 AM',
-    createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(), // 15 mins ago
-    read: false,
-  },
-  {
-    id: 'notif-2',
-    type: 'consultation',
-    title: 'Consultation Pending Approval ⏳',
-    message: 'Your appointment request with Dr. Priya Singh (Yoga & Pranayama) is currently under review.',
-    status: 'pending',
-    doctorName: 'Dr. Priya Singh',
-    date: 'Aug 12, 2026',
-    time: '04:00 PM',
-    createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(), // 2 hours ago
-    read: false,
-  },
-  {
-    id: 'notif-3',
-    type: 'event',
-    title: 'Upcoming Event Alert 🌿',
-    message: 'National AYUSH Research Summit 2026 starts in 3 days. Registered pass active.',
-    status: 'info',
-    createdAt: new Date(Date.now() - 1000 * 60 * 600).toISOString(),
-    read: true,
-  },
-  {
-    id: 'notif-4',
-    type: 'system',
-    title: 'Welcome to AYUSHLINE Portal',
-    message: 'Your account is active. You can now consult top AYUSH practitioners, register for seminars, and post research articles.',
-    status: 'info',
-    createdAt: new Date(Date.now() - 1000 * 60 * 1440).toISOString(),
-    read: true,
-  },
-];
+// Clean up old hardcoded mock notifications (e.g. dummy Dr. Ananya Sharma / Priya Singh entries)
+function purgeLegacyMockNotifications() {
+  if (typeof window === 'undefined') return;
+  try {
+    for (const key of LEGACY_STORAGE_KEYS) {
+      window.localStorage.removeItem(key);
+    }
+  } catch {
+    // ignore
+  }
+}
 
-export function getNotifications(): AppNotification[] {
-  if (typeof window === 'undefined') return INITIAL_NOTIFICATIONS;
+// Initial default notifications: empty array for clean, authentic user logs only
+export const INITIAL_NOTIFICATIONS: AppNotification[] = [];
+
+export function getNotifications(userEmailOrId?: string): AppNotification[] {
+  if (typeof window === 'undefined') return [];
+  purgeLegacyMockNotifications();
+
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_NOTIFICATIONS));
-      return INITIAL_NOTIFICATIONS;
+    if (!raw) return [];
+    const all: AppNotification[] = JSON.parse(raw);
+
+    // Filter out legacy dummy notifs if any slipped in
+    const cleaned = all.filter((n) => {
+      const isLegacyDummy =
+        n.id === 'notif-1' ||
+        n.id === 'notif-2' ||
+        n.id === 'notif-3' ||
+        n.id === 'notif-4' ||
+        (n.doctorName === 'Dr. Ananya Sharma' && !n.userId && !n.userEmail) ||
+        (n.doctorName === 'Dr. Priya Singh' && !n.userId && !n.userEmail);
+      return !isLegacyDummy;
+    });
+
+    if (cleaned.length !== all.length) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
     }
-    return JSON.parse(raw);
+
+    if (!userEmailOrId) {
+      // If guest or no user context provided, only return global system announcements (if any)
+      return cleaned.filter((n) => n.type === 'system' && !n.userId && !n.userEmail);
+    }
+
+    const needle = userEmailOrId.trim().toLowerCase();
+    return cleaned.filter((n) => {
+      // Match by exact user ID
+      if (n.userId && n.userId === userEmailOrId) return true;
+      // Match by user Email
+      if (n.userEmail && n.userEmail.trim().toLowerCase() === needle) return true;
+      // System wide announcements targeted to all
+      if (n.type === 'system' && !n.userId && !n.userEmail) return true;
+      return false;
+    });
   } catch {
-    return INITIAL_NOTIFICATIONS;
+    return [];
+  }
+}
+
+export function getAllNotificationsRaw(): AppNotification[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
   }
 }
 
@@ -82,11 +104,13 @@ export function saveNotifications(notifications: AppNotification[]) {
   }
 }
 
-export function addNotification(notif: Omit<AppNotification, 'id' | 'createdAt' | 'read'>): AppNotification {
-  const current = getNotifications();
+export function addNotification(
+  notif: Omit<AppNotification, 'id' | 'createdAt' | 'read'>
+): AppNotification {
+  const current = getAllNotificationsRaw();
   const newNotif: AppNotification = {
     ...notif,
-    id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+    id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
     createdAt: new Date().toISOString(),
     read: false,
   };
@@ -96,17 +120,58 @@ export function addNotification(notif: Omit<AppNotification, 'id' | 'createdAt' 
 }
 
 export function markAsRead(id: string) {
-  const current = getNotifications();
+  const current = getAllNotificationsRaw();
   const updated = current.map((n) => (n.id === id ? { ...n, read: true } : n));
   saveNotifications(updated);
 }
 
-export function markAllAsRead() {
-  const current = getNotifications();
-  const updated = current.map((n) => ({ ...n, read: true }));
+export function markAllAsRead(userEmailOrId?: string) {
+  const current = getAllNotificationsRaw();
+  const needle = userEmailOrId?.trim().toLowerCase();
+  const updated = current.map((n) => {
+    if (!needle) return { ...n, read: true };
+    const matches =
+      n.userId === userEmailOrId ||
+      (n.userEmail && n.userEmail.trim().toLowerCase() === needle) ||
+      (n.type === 'system' && !n.userId && !n.userEmail);
+    return matches ? { ...n, read: true } : n;
+  });
   saveNotifications(updated);
 }
 
-export function clearNotifications() {
-  saveNotifications([]);
+export function clearNotifications(userEmailOrId?: string) {
+  if (!userEmailOrId) {
+    saveNotifications([]);
+    return;
+  }
+  const current = getAllNotificationsRaw();
+  const needle = userEmailOrId.trim().toLowerCase();
+  const kept = current.filter((n) => {
+    const matches =
+      n.userId === userEmailOrId ||
+      (n.userEmail && n.userEmail.trim().toLowerCase() === needle);
+    return !matches;
+  });
+  saveNotifications(kept);
+}
+
+export function updateNotificationRoleInviteStatus(
+  notificationId: string,
+  status: 'accepted' | 'declined'
+) {
+  const current = getAllNotificationsRaw();
+  const updated = current.map((n) => {
+    if (n.id === notificationId && n.roleInvite) {
+      return {
+        ...n,
+        read: true,
+        roleInvite: {
+          ...n.roleInvite,
+          status,
+        },
+      };
+    }
+    return n;
+  });
+  saveNotifications(updated);
 }
